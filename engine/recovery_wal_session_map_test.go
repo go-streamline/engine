@@ -1,0 +1,148 @@
+package engine
+
+import (
+	"testing"
+
+	"github.com/go-streamline/core/repo"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestCreateSessionIDToLastEntryMap(t *testing.T) {
+	tests := []struct {
+		name           string
+		entries        []repo.LogEntry
+		expectedOutput map[uuid.UUID]repo.LogEntry
+	}{
+		{
+			name: "Single entry",
+			entries: []repo.LogEntry{
+				{
+					SessionID:   uuid.MustParse("1bfcf809-7cc4-4834-bb5e-33c37a66c126"),
+					HandlerName: "handler1",
+					HandlerID:   "handler1",
+				},
+			},
+			expectedOutput: map[uuid.UUID]repo.LogEntry{
+				uuid.MustParse("1bfcf809-7cc4-4834-bb5e-33c37a66c126"): {
+					SessionID:   uuid.MustParse("1bfcf809-7cc4-4834-bb5e-33c37a66c126"),
+					HandlerName: "handler1",
+					HandlerID:   "handler1",
+				},
+			},
+		},
+		{
+			name: "Multiple entries, same session",
+			entries: []repo.LogEntry{
+				{
+					SessionID:   uuid.MustParse("da3f59f7-83b1-43a9-9465-9312575839f6"),
+					HandlerName: "handler1",
+					HandlerID:   "handler1",
+				},
+				{
+					SessionID:   uuid.MustParse("da3f59f7-83b1-43a9-9465-9312575839f6"),
+					HandlerName: "handler2",
+					HandlerID:   "handler2",
+				},
+			},
+			expectedOutput: map[uuid.UUID]repo.LogEntry{
+				uuid.MustParse("da3f59f7-83b1-43a9-9465-9312575839f6"): {
+					SessionID:   uuid.MustParse("da3f59f7-83b1-43a9-9465-9312575839f6"),
+					HandlerName: "handler2",
+					HandlerID:   "handler2",
+				},
+			},
+		},
+		{
+			name: "Multiple entries, different sessions",
+			entries: []repo.LogEntry{
+				{
+					SessionID:   uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
+					HandlerName: "handler1",
+					HandlerID:   "handler1",
+				},
+				{
+					SessionID:   uuid.MustParse("82158378-9bd0-4adb-be50-da697c58c675"),
+					HandlerName: "handler2",
+					HandlerID:   "handler2",
+				},
+				{
+					SessionID:   uuid.MustParse("75565bad-1dce-4565-825d-2e3831a57a4f"),
+					HandlerName: "handler3",
+					HandlerID:   "handler3",
+				},
+			},
+			expectedOutput: map[uuid.UUID]repo.LogEntry{
+				uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"): {
+					SessionID:   uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
+					HandlerName: "handler1",
+					HandlerID:   "handler1",
+				},
+				uuid.MustParse("82158378-9bd0-4adb-be50-da697c58c675"): {
+					SessionID:   uuid.MustParse("82158378-9bd0-4adb-be50-da697c58c675"),
+					HandlerName: "handler2",
+					HandlerID:   "handler2",
+				},
+				uuid.MustParse("75565bad-1dce-4565-825d-2e3831a57a4f"): {
+					SessionID:   uuid.MustParse("75565bad-1dce-4565-825d-2e3831a57a4f"),
+					HandlerName: "handler3",
+					HandlerID:   "handler3",
+				},
+			},
+		},
+		{
+			name: "Session marked as ended",
+			entries: []repo.LogEntry{
+				{
+					SessionID:   uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
+					HandlerName: "handler1",
+					HandlerID:   "handler1",
+				},
+				{
+					SessionID:   uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
+					HandlerName: "__end__",
+					HandlerID:   "handler2",
+				},
+			},
+			expectedOutput: map[uuid.UUID]repo.LogEntry{},
+		},
+		{
+			name: "Mixed entries with ended session",
+			entries: []repo.LogEntry{
+				{
+					SessionID:   uuid.MustParse("91faadb6-fbe2-4952-a189-f9e7d4e3badd"),
+					HandlerName: "handler1",
+					HandlerID:   "handler1",
+				},
+				{
+					SessionID:   uuid.MustParse("91faadb6-fbe2-4952-a189-f9e7d4e3badd"),
+					HandlerName: "handler2",
+					HandlerID:   "handler2",
+				},
+				{
+					SessionID:   uuid.MustParse("91faadb6-fbe2-4952-a189-f9e7d4e3badd"),
+					HandlerName: "__end__",
+					HandlerID:   "handler3",
+				},
+			},
+			expectedOutput: map[uuid.UUID]repo.LogEntry{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			engine := &Engine{}
+			output := engine.createSessionIDToLastEntryMap(tt.entries)
+
+			for sessionID, expectedEntry := range tt.expectedOutput {
+				actualEntry, exists := output[sessionID]
+				assert.True(t, exists)
+				assert.Equal(t, expectedEntry.SessionID, actualEntry.SessionID)
+				assert.Equal(t, expectedEntry.HandlerName, actualEntry.HandlerName)
+				assert.Equal(t, expectedEntry.HandlerID, actualEntry.HandlerID)
+			}
+
+			assert.Equal(t, len(tt.expectedOutput), len(output))
+		})
+	}
+}
