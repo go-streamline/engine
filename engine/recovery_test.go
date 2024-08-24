@@ -34,7 +34,7 @@ func TestRecover_Success(t *testing.T) {
 
 	mockWAL.On("ReadEntries").Return([]repo.LogEntry{entry}, nil)
 
-	err := engine.Recover()
+	err := engine.recover()
 	assert.NoError(t, err)
 
 	select {

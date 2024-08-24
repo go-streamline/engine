@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (e *Engine) Recover() error {
+func (e *Engine) recover() error {
 	log.Debugf("go-streamline is recovering from WriteAheadLogger")
 	entries, err := e.writeAheadLogger.ReadEntries()
 	if err != nil {
