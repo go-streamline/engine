@@ -16,7 +16,7 @@ import (
 )
 
 type Engine struct {
-	Handlers              []config.HandlerConfig
+	Processors            []config.ProcessorConfig
 	ctx                   context.Context
 	incomingQueue         chan definitions.EngineIncomingObject
 	sessionUpdatesChannel chan definitions.SessionUpdate
@@ -31,7 +31,7 @@ type Engine struct {
 type retryTask struct {
 	flow        *definitions.EngineFlowObject
 	fileHandler definitions.EngineFileHandler
-	handlerID   string
+	processorID string
 	sessionID   uuid.UUID
 	attempts    int
 }
@@ -43,7 +43,7 @@ func New(ctx context.Context, config config.Config, writeAheadLogger repo.WriteA
 	}
 
 	return &Engine{
-		Handlers:              config.Handlers,
+		Processors:            config.Processors,
 		ctx:                   ctx,
 		incomingQueue:         make(chan definitions.EngineIncomingObject),
 		sessionUpdatesChannel: make(chan definitions.SessionUpdate),
@@ -108,12 +108,12 @@ func (e *Engine) handleFile(i definitions.EngineIncomingObject) {
 	input := path.Join(e.contentsDir, uuid.NewString())
 
 	walEntry := repo.LogEntry{
-		SessionID:   sessionID,
-		HandlerName: "__init__",
-		HandlerID:   "__init__",
-		InputFile:   i.Filepath,
-		OutputFile:  input,
-		FlowObject:  flow,
+		SessionID:     sessionID,
+		ProcessorName: "__init__",
+		ProcessorID:   "__init__",
+		InputFile:     i.Filepath,
+		OutputFile:    input,
+		FlowObject:    flow,
 	}
 	e.writeAheadLogger.WriteEntry(walEntry)
 
@@ -126,11 +126,11 @@ func (e *Engine) handleFile(i definitions.EngineIncomingObject) {
 
 	fileHandler := filehandler.NewEngineFileHandler(input)
 
-	err = e.processHandlers(&flow, fileHandler, "", sessionID)
+	err = e.executeProcessors(&flow, fileHandler, "", sessionID)
 	if err != nil {
-		e.log.WithError(err).Error("failed to process handlers")
-		walEntry.HandlerName = "__end__"
-		walEntry.HandlerID = "__end__"
+		e.log.WithError(err).Error("failed to execute processors")
+		walEntry.ProcessorName = "__end__"
+		walEntry.ProcessorID = "__end__"
 		e.writeAheadLogger.WriteEntry(walEntry)
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: sessionID,
@@ -148,26 +148,26 @@ func (e *Engine) handleFile(i definitions.EngineIncomingObject) {
 }
 
 func (e *Engine) scheduleInitRetry(i definitions.EngineIncomingObject, sessionID uuid.UUID) {
-	// Log the retry attempt in the WAL
+	// log the retry attempt in the WAL
 	e.log.Infof("scheduling retry for init of session %s", sessionID)
 	walEntry := repo.LogEntry{
-		SessionID:   sessionID,
-		HandlerName: "__init__",
-		HandlerID:   "__init__",
-		InputFile:   i.Filepath,
-		OutputFile:  "",
-		FlowObject:  transformIncomingObjectToFlowObject(i),
-		RetryCount:  0, // No retry limit for init
+		SessionID:     sessionID,
+		ProcessorName: "__init__",
+		ProcessorID:   "__init__",
+		InputFile:     i.Filepath,
+		OutputFile:    "",
+		FlowObject:    transformIncomingObjectToFlowObject(i),
+		RetryCount:    0, // no retry limit for init
 	}
 	e.writeAheadLogger.WriteEntry(walEntry)
 
 	time.AfterFunc(time.Second*5, func() {
 		e.retryQueue <- retryTask{
 			flow:        &walEntry.FlowObject,
-			fileHandler: filehandler.NewEngineFileHandler(i.Filepath), // Retry from the original file path
-			handlerID:   "__init__",
+			fileHandler: filehandler.NewEngineFileHandler(i.Filepath), // retry from the original file path
+			processorID: "__init__",
 			sessionID:   sessionID,
-			attempts:    0, // No limit on attempts for init
+			attempts:    0, // no limit on attempts for init
 		}
 	})
 }

@@ -11,30 +11,30 @@ import (
 	"time"
 )
 
-func (e *Engine) processHandlers(flow *definitions.EngineFlowObject, fileHandler definitions.EngineFileHandler, startHandlerID string, sessionID uuid.UUID) error {
-	e.log.Tracef("processing handlers")
-	resume := startHandlerID == ""
-	e.log.Debugf("resuming from handler %s", startHandlerID)
+func (e *Engine) executeProcessors(flow *definitions.EngineFlowObject, fileHandler definitions.EngineFileHandler, startProcesosrID string, sessionID uuid.UUID) error {
+	e.log.Tracef("executing processors for session %s", sessionID)
+	resume := startProcesosrID == ""
+	e.log.Debugf("resuming from processor %s", startProcesosrID)
 
-	for _, hCtx := range e.Handlers {
-		h := hCtx.Handler
-		handlerID := h.GetID()
-		if handlerID == startHandlerID && !resume {
+	for _, hCtx := range e.Processors {
+		h := hCtx.Processor
+		processorID := h.GetID()
+		if processorID == startProcesosrID && !resume {
 			resume = true
 		}
 		if resume {
-			e.log.Debugf("handling %s with handler %s", fileHandler.GetInputFile(), h.Name())
+			e.log.Debugf("handling %s with processor %s", fileHandler.GetInputFile(), h.Name())
 			logEntry := repo.LogEntry{
-				SessionID:   sessionID,
-				HandlerName: h.Name(),
-				HandlerID:   handlerID,
-				InputFile:   fileHandler.GetInputFile(),
-				OutputFile:  fileHandler.GetOutputFile(),
-				FlowObject:  *flow,
+				SessionID:     sessionID,
+				ProcessorName: h.Name(),
+				ProcessorID:   processorID,
+				InputFile:     fileHandler.GetInputFile(),
+				OutputFile:    fileHandler.GetOutputFile(),
+				FlowObject:    *flow,
 			}
-			e.log.Debugf("writing WAL entry for handler %s (%s)", h.Name(), handlerID)
+			e.log.Debugf("writing WAL entry for processor %s (%s)", h.Name(), processorID)
 			e.writeAheadLogger.WriteEntry(logEntry)
-			e.log.Debugf("deep copying flow object for handler %s (%s)", h.Name(), handlerID)
+			e.log.Debugf("deep copying flow object for processor %s (%s)", h.Name(), processorID)
 
 			copiedFlow, err := utils.DeepCopy(flow)
 			if err != nil {
@@ -47,22 +47,22 @@ func (e *Engine) processHandlers(flow *definitions.EngineFlowObject, fileHandler
 				return err
 			}
 
-			e.log.Debugf("handling %s with handler %s", fileHandler.GetInputFile(), h.Name())
+			e.log.Debugf("handling %s with processor %s", fileHandler.GetInputFile(), h.Name())
 
-			// Handle without retry loop
-			newFlow, err := h.Handle(copiedFlow, fileHandler)
+			// Execute without retry loop
+			newFlow, err := h.Execute(copiedFlow, fileHandler)
 			if err != nil {
-				e.log.WithError(err).Warnf("handler %s failed, scheduling retry", h.Name())
-				e.scheduleRetry(copiedFlow, fileHandler, handlerID, sessionID, hCtx.Retry.BackOffInterval, 1)
+				e.log.WithError(err).Warnf("processor %s failed, scheduling retry", h.Name())
+				e.scheduleRetry(copiedFlow, fileHandler, processorID, sessionID, hCtx.Retry.BackOffInterval, 1)
 				return nil
 			}
 
 			flow = newFlow
-			e.log.Debugf("handled %s with handler %s", fileHandler.GetInputFile(), h.Name())
+			e.log.Debugf("handled %s with processor %s", fileHandler.GetInputFile(), h.Name())
 
 			fileHandler, err = fileHandler.GenerateNewFileHandler()
 			if err != nil {
-				e.log.WithError(err).Errorf("failed to generate new file handler for handler %s", h.Name())
+				e.log.WithError(err).Errorf("failed to generate new file handler for processor %s", h.Name())
 				e.sessionUpdatesChannel <- definitions.SessionUpdate{
 					SessionID: sessionID,
 					Finished:  false,
@@ -74,17 +74,17 @@ func (e *Engine) processHandlers(flow *definitions.EngineFlowObject, fileHandler
 	}
 
 	if !resume {
-		e.log.Warnf("no handlers were processed, go-streamline will not write the output file")
+		e.log.Warnf("no processor were executed, go-streamline will not write the output file")
 	}
 
 	inputFile := fileHandler.GetInputFile()
 	logEntry := repo.LogEntry{
-		SessionID:   sessionID,
-		HandlerName: "__end__",
-		HandlerID:   "__end__",
-		InputFile:   inputFile,
-		OutputFile:  fileHandler.GetOutputFile(),
-		FlowObject:  *flow,
+		SessionID:     sessionID,
+		ProcessorName: "__end__",
+		ProcessorID:   "__end__",
+		InputFile:     inputFile,
+		OutputFile:    fileHandler.GetOutputFile(),
+		FlowObject:    *flow,
 	}
 	e.writeAheadLogger.WriteEntry(logEntry)
 	err := os.Remove(inputFile)
@@ -105,20 +105,20 @@ func (e *Engine) processHandlers(flow *definitions.EngineFlowObject, fileHandler
 func (e *Engine) scheduleRetry(
 	flow *definitions.EngineFlowObject,
 	fileHandler definitions.EngineFileHandler,
-	handlerID string,
+	processorID string,
 	sessionID uuid.UUID,
 	backOffInterval time.Duration,
 	attempts int,
 ) {
 	// Log the retry attempt in the WAL
 	logEntry := repo.LogEntry{
-		SessionID:   sessionID,
-		HandlerName: "__retry__",
-		HandlerID:   handlerID,
-		InputFile:   fileHandler.GetInputFile(),
-		OutputFile:  fileHandler.GetOutputFile(),
-		FlowObject:  *flow,
-		RetryCount:  attempts,
+		SessionID:     sessionID,
+		ProcessorName: "__retry__",
+		ProcessorID:   processorID,
+		InputFile:     fileHandler.GetInputFile(),
+		OutputFile:    fileHandler.GetOutputFile(),
+		FlowObject:    *flow,
+		RetryCount:    attempts,
 	}
 	e.writeAheadLogger.WriteEntry(logEntry)
 
@@ -127,7 +127,7 @@ func (e *Engine) scheduleRetry(
 		e.retryQueue <- retryTask{
 			flow:        flow,
 			fileHandler: fileHandler,
-			handlerID:   handlerID,
+			processorID: processorID,
 			sessionID:   sessionID,
 			attempts:    attempts,
 		}
@@ -135,7 +135,7 @@ func (e *Engine) scheduleRetry(
 }
 
 func (e *Engine) retryTask(task retryTask) {
-	if task.handlerID == "__init__" {
+	if task.processorID == "__init__" {
 		// Handle the init retry
 		e.log.Debugf("retrying init for session %s", task.sessionID)
 
@@ -147,31 +147,31 @@ func (e *Engine) retryTask(task retryTask) {
 		e.handleFile(i)
 	} else {
 		// Existing logic for other handlers
-		hCtx := e.findHandlerContext(task.handlerID)
+		hCtx := e.findHandlerContext(task.processorID)
 		if hCtx == nil {
-			e.log.Errorf("handler with ID %s not found during retry", task.handlerID)
+			e.log.Errorf("processor with ID %s not found during retry", task.processorID)
 			e.sessionUpdatesChannel <- definitions.SessionUpdate{
 				SessionID: task.sessionID,
 				Finished:  true,
-				Error:     fmt.Errorf("handler with ID %s not found", task.handlerID),
+				Error:     fmt.Errorf("handler with ID %s not found", task.processorID),
 			}
 			return
 		}
 
-		e.log.Debugf("retrying handler %s for session %s, attempt %d", task.handlerID, task.sessionID, task.attempts)
+		e.log.Debugf("retrying processor %s for session %s, attempt %d", task.processorID, task.sessionID, task.attempts)
 
-		newFlow, err := hCtx.Handler.Handle(task.flow, task.fileHandler)
+		newFlow, err := hCtx.Processor.Execute(task.flow, task.fileHandler)
 		if err != nil {
 			if task.attempts < hCtx.Retry.MaxRetries {
-				e.log.WithError(err).Warnf("retrying handler %s (%d/%d)", hCtx.Handler.Name(), task.attempts+1, hCtx.Retry.MaxRetries)
-				e.scheduleRetry(task.flow, task.fileHandler, task.handlerID, task.sessionID, hCtx.Retry.BackOffInterval, task.attempts+1)
+				e.log.WithError(err).Warnf("retrying processor %s (%d/%d)", hCtx.Processor.Name(), task.attempts+1, hCtx.Retry.MaxRetries)
+				e.scheduleRetry(task.flow, task.fileHandler, task.processorID, task.sessionID, hCtx.Retry.BackOffInterval, task.attempts+1)
 				e.sessionUpdatesChannel <- definitions.SessionUpdate{
 					SessionID: task.sessionID,
 					Finished:  false,
 					Error:     err,
 				}
 			} else {
-				e.log.WithError(err).Errorf("failed to handle %s with handler %s after %d attempts", task.fileHandler.GetInputFile(), hCtx.Handler.Name(), hCtx.Retry.MaxRetries)
+				e.log.WithError(err).Errorf("failed to handle %s with processor %s after %d attempts", task.fileHandler.GetInputFile(), hCtx.Processor.Name(), hCtx.Retry.MaxRetries)
 				e.sessionUpdatesChannel <- definitions.SessionUpdate{
 					SessionID: task.sessionID,
 					Finished:  true,
@@ -179,9 +179,9 @@ func (e *Engine) retryTask(task retryTask) {
 				}
 			}
 		} else {
-			err = e.processHandlers(newFlow, task.fileHandler, task.handlerID, task.sessionID)
+			err = e.executeProcessors(newFlow, task.fileHandler, task.processorID, task.sessionID)
 			if err != nil {
-				e.log.WithError(err).Errorf("failed to process handlers for session %s", task.sessionID)
+				e.log.WithError(err).Errorf("failed to execute processors for session %s", task.sessionID)
 				e.sessionUpdatesChannel <- definitions.SessionUpdate{
 					SessionID: task.sessionID,
 					Finished:  true,
@@ -192,9 +192,9 @@ func (e *Engine) retryTask(task retryTask) {
 	}
 }
 
-func (e *Engine) findHandlerContext(handlerID string) *config.HandlerConfig {
-	for _, hCtx := range e.Handlers {
-		if hCtx.Handler.GetID() == handlerID {
+func (e *Engine) findHandlerContext(handlerID string) *config.ProcessorConfig {
+	for _, hCtx := range e.Processors {
+		if hCtx.Processor.GetID() == handlerID {
 			return &hCtx
 		}
 	}

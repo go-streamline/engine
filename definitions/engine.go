@@ -12,41 +12,40 @@ type EngineFlowObject struct {
 }
 
 type EngineIncomingObject struct {
-	Metadata       map[string]interface{}
-	Filepath       string
-	StartHandlerID string
-	SessionID      uuid.UUID
+	Metadata  map[string]interface{}
+	Filepath  string
+	SessionID uuid.UUID
 }
 
 func (e *EngineFlowObject) EvaluateExpression(input string) (string, error) {
 	return utils.EvaluateExpression(input, e.Metadata)
 }
 
-type BaseHandler struct {
+type BaseProcessor struct {
 	ID string
 }
 
-func (b *BaseHandler) GetID() string {
+func (b *BaseProcessor) GetID() string {
 	return b.ID
 }
 
-func (b *BaseHandler) DecodeMap(input interface{}, output interface{}) error {
+func (b *BaseProcessor) DecodeMap(input interface{}, output interface{}) error {
 	return mapstructure.Decode(input, output)
 }
 
-type Handler interface {
+type Processor interface {
 	GetID() string
 	Name() string
-	Handle(info *EngineFlowObject, fileHandler HandlerFileHandler) (*EngineFlowObject, error)
+	Execute(info *EngineFlowObject, fileHandler ProcessorFileHandler) (*EngineFlowObject, error)
 }
 
-type HandlerFileHandler interface {
+type ProcessorFileHandler interface {
 	Read() (io.Reader, error)
 	Write() (io.Writer, error)
 }
 
 type EngineFileHandler interface {
-	HandlerFileHandler
+	ProcessorFileHandler
 	GetInputFile() string
 	GetOutputFile() string
 	Close()

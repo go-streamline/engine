@@ -15,17 +15,17 @@ type WriteAheadLogging struct {
 type Config struct {
 	Workdir              string
 	WriteAheadLogging    WriteAheadLogging
-	Handlers             []HandlerConfig
+	Processors           []ProcessorConfig
 	IgnoreRecoveryErrors bool
 	MaxWorkers           int
 }
 
-type HandlerConfig struct {
-	Handler definitions.Handler
-	Retry   HandlerRetryMechanism
+type ProcessorConfig struct {
+	Processor definitions.Processor
+	Retry     ProcessorRetryMechanism
 }
 
-type HandlerRetryMechanism struct {
+type ProcessorRetryMechanism struct {
 	MaxRetries      int
 	BackOffInterval time.Duration
 }

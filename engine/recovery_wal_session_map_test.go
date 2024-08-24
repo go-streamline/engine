@@ -18,16 +18,16 @@ func TestCreateSessionIDToLastEntryMap(t *testing.T) {
 			name: "Single entry",
 			entries: []repo.LogEntry{
 				{
-					SessionID:   uuid.MustParse("1bfcf809-7cc4-4834-bb5e-33c37a66c126"),
-					HandlerName: "handler1",
-					HandlerID:   "handler1",
+					SessionID:     uuid.MustParse("1bfcf809-7cc4-4834-bb5e-33c37a66c126"),
+					ProcessorName: "handler1",
+					ProcessorID:   "handler1",
 				},
 			},
 			expectedOutput: map[uuid.UUID]repo.LogEntry{
 				uuid.MustParse("1bfcf809-7cc4-4834-bb5e-33c37a66c126"): {
-					SessionID:   uuid.MustParse("1bfcf809-7cc4-4834-bb5e-33c37a66c126"),
-					HandlerName: "handler1",
-					HandlerID:   "handler1",
+					SessionID:     uuid.MustParse("1bfcf809-7cc4-4834-bb5e-33c37a66c126"),
+					ProcessorName: "handler1",
+					ProcessorID:   "handler1",
 				},
 			},
 		},
@@ -35,21 +35,21 @@ func TestCreateSessionIDToLastEntryMap(t *testing.T) {
 			name: "Multiple entries, same session",
 			entries: []repo.LogEntry{
 				{
-					SessionID:   uuid.MustParse("da3f59f7-83b1-43a9-9465-9312575839f6"),
-					HandlerName: "handler1",
-					HandlerID:   "handler1",
+					SessionID:     uuid.MustParse("da3f59f7-83b1-43a9-9465-9312575839f6"),
+					ProcessorName: "handler1",
+					ProcessorID:   "handler1",
 				},
 				{
-					SessionID:   uuid.MustParse("da3f59f7-83b1-43a9-9465-9312575839f6"),
-					HandlerName: "handler2",
-					HandlerID:   "handler2",
+					SessionID:     uuid.MustParse("da3f59f7-83b1-43a9-9465-9312575839f6"),
+					ProcessorName: "handler2",
+					ProcessorID:   "handler2",
 				},
 			},
 			expectedOutput: map[uuid.UUID]repo.LogEntry{
 				uuid.MustParse("da3f59f7-83b1-43a9-9465-9312575839f6"): {
-					SessionID:   uuid.MustParse("da3f59f7-83b1-43a9-9465-9312575839f6"),
-					HandlerName: "handler2",
-					HandlerID:   "handler2",
+					SessionID:     uuid.MustParse("da3f59f7-83b1-43a9-9465-9312575839f6"),
+					ProcessorName: "handler2",
+					ProcessorID:   "handler2",
 				},
 			},
 		},
@@ -57,36 +57,36 @@ func TestCreateSessionIDToLastEntryMap(t *testing.T) {
 			name: "Multiple entries, different sessions",
 			entries: []repo.LogEntry{
 				{
-					SessionID:   uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
-					HandlerName: "handler1",
-					HandlerID:   "handler1",
+					SessionID:     uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
+					ProcessorName: "handler1",
+					ProcessorID:   "handler1",
 				},
 				{
-					SessionID:   uuid.MustParse("82158378-9bd0-4adb-be50-da697c58c675"),
-					HandlerName: "handler2",
-					HandlerID:   "handler2",
+					SessionID:     uuid.MustParse("82158378-9bd0-4adb-be50-da697c58c675"),
+					ProcessorName: "handler2",
+					ProcessorID:   "handler2",
 				},
 				{
-					SessionID:   uuid.MustParse("75565bad-1dce-4565-825d-2e3831a57a4f"),
-					HandlerName: "handler3",
-					HandlerID:   "handler3",
+					SessionID:     uuid.MustParse("75565bad-1dce-4565-825d-2e3831a57a4f"),
+					ProcessorName: "handler3",
+					ProcessorID:   "handler3",
 				},
 			},
 			expectedOutput: map[uuid.UUID]repo.LogEntry{
 				uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"): {
-					SessionID:   uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
-					HandlerName: "handler1",
-					HandlerID:   "handler1",
+					SessionID:     uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
+					ProcessorName: "handler1",
+					ProcessorID:   "handler1",
 				},
 				uuid.MustParse("82158378-9bd0-4adb-be50-da697c58c675"): {
-					SessionID:   uuid.MustParse("82158378-9bd0-4adb-be50-da697c58c675"),
-					HandlerName: "handler2",
-					HandlerID:   "handler2",
+					SessionID:     uuid.MustParse("82158378-9bd0-4adb-be50-da697c58c675"),
+					ProcessorName: "handler2",
+					ProcessorID:   "handler2",
 				},
 				uuid.MustParse("75565bad-1dce-4565-825d-2e3831a57a4f"): {
-					SessionID:   uuid.MustParse("75565bad-1dce-4565-825d-2e3831a57a4f"),
-					HandlerName: "handler3",
-					HandlerID:   "handler3",
+					SessionID:     uuid.MustParse("75565bad-1dce-4565-825d-2e3831a57a4f"),
+					ProcessorName: "handler3",
+					ProcessorID:   "handler3",
 				},
 			},
 		},
@@ -94,14 +94,14 @@ func TestCreateSessionIDToLastEntryMap(t *testing.T) {
 			name: "Session marked as ended",
 			entries: []repo.LogEntry{
 				{
-					SessionID:   uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
-					HandlerName: "handler1",
-					HandlerID:   "handler1",
+					SessionID:     uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
+					ProcessorName: "handler1",
+					ProcessorID:   "handler1",
 				},
 				{
-					SessionID:   uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
-					HandlerName: "__end__",
-					HandlerID:   "handler2",
+					SessionID:     uuid.MustParse("8b8c96b7-d0e7-4bed-9d21-db1f85661039"),
+					ProcessorName: "__end__",
+					ProcessorID:   "handler2",
 				},
 			},
 			expectedOutput: map[uuid.UUID]repo.LogEntry{},
@@ -110,19 +110,19 @@ func TestCreateSessionIDToLastEntryMap(t *testing.T) {
 			name: "Mixed entries with ended session",
 			entries: []repo.LogEntry{
 				{
-					SessionID:   uuid.MustParse("91faadb6-fbe2-4952-a189-f9e7d4e3badd"),
-					HandlerName: "handler1",
-					HandlerID:   "handler1",
+					SessionID:     uuid.MustParse("91faadb6-fbe2-4952-a189-f9e7d4e3badd"),
+					ProcessorName: "handler1",
+					ProcessorID:   "handler1",
 				},
 				{
-					SessionID:   uuid.MustParse("91faadb6-fbe2-4952-a189-f9e7d4e3badd"),
-					HandlerName: "handler2",
-					HandlerID:   "handler2",
+					SessionID:     uuid.MustParse("91faadb6-fbe2-4952-a189-f9e7d4e3badd"),
+					ProcessorName: "handler2",
+					ProcessorID:   "handler2",
 				},
 				{
-					SessionID:   uuid.MustParse("91faadb6-fbe2-4952-a189-f9e7d4e3badd"),
-					HandlerName: "__end__",
-					HandlerID:   "handler3",
+					SessionID:     uuid.MustParse("91faadb6-fbe2-4952-a189-f9e7d4e3badd"),
+					ProcessorName: "__end__",
+					ProcessorID:   "handler3",
 				},
 			},
 			expectedOutput: map[uuid.UUID]repo.LogEntry{},
@@ -138,8 +138,8 @@ func TestCreateSessionIDToLastEntryMap(t *testing.T) {
 				actualEntry, exists := output[sessionID]
 				assert.True(t, exists)
 				assert.Equal(t, expectedEntry.SessionID, actualEntry.SessionID)
-				assert.Equal(t, expectedEntry.HandlerName, actualEntry.HandlerName)
-				assert.Equal(t, expectedEntry.HandlerID, actualEntry.HandlerID)
+				assert.Equal(t, expectedEntry.ProcessorName, actualEntry.ProcessorName)
+				assert.Equal(t, expectedEntry.ProcessorID, actualEntry.ProcessorID)
 			}
 
 			assert.Equal(t, len(tt.expectedOutput), len(output))

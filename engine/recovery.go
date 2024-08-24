@@ -36,7 +36,7 @@ func (e *Engine) Recover() error {
 		e.retryQueue <- retryTask{
 			flow:        flow,
 			fileHandler: fileHandler,
-			handlerID:   lastEntry.HandlerID,
+			processorID: lastEntry.ProcessorID,
 			sessionID:   sessionID,
 			attempts:    lastEntry.RetryCount,
 		}
@@ -51,7 +51,7 @@ func (e *Engine) createSessionIDToLastEntryMap(entries []repo.LogEntry) map[uuid
 
 	for _, entry := range entries {
 		// If the session is marked as ended, remove it from the session map
-		if entry.HandlerName == "__end__" {
+		if entry.ProcessorName == "__end__" {
 			delete(sessionMap, entry.SessionID)
 			continue
 		}
@@ -61,10 +61,10 @@ func (e *Engine) createSessionIDToLastEntryMap(entries []repo.LogEntry) map[uuid
 }
 
 func (e *Engine) getProcessHandlerForSession(sessionID uuid.UUID, lastEntry repo.LogEntry) (definitions.EngineFileHandler, *definitions.EngineFlowObject, error) {
-	log.Debugf("go-streamline is recovering session %s starting from handler %s", sessionID, lastEntry.HandlerID)
+	log.Debugf("go-streamline is recovering session %s starting from handler %s", sessionID, lastEntry.ProcessorID)
 	var fileHandler definitions.EngineFileHandler
 
-	if lastEntry.HandlerID == "__init__" {
+	if lastEntry.ProcessorID == "__init__" {
 		log.Debugf("last entry for session %s was '__init__'", sessionID)
 		err := utils.CopyFile(lastEntry.InputFile, lastEntry.OutputFile)
 		if err != nil {

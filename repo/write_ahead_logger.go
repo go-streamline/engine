@@ -13,13 +13,13 @@ import (
 )
 
 type LogEntry struct {
-	SessionID   uuid.UUID
-	HandlerName string
-	HandlerID   string
-	InputFile   string
-	OutputFile  string
-	FlowObject  definitions.EngineFlowObject
-	RetryCount  int
+	SessionID     uuid.UUID
+	ProcessorName string
+	ProcessorID   string
+	InputFile     string
+	OutputFile    string
+	FlowObject    definitions.EngineFlowObject
+	RetryCount    int
 }
 
 type WriteAheadLogger interface {
@@ -105,12 +105,12 @@ func (l *DefaultWriteAheadLogger) WriteEntry(entry LogEntry) {
 		return
 	}
 	l.logger.WithFields(logrus.Fields{
-		"session_id":   entry.SessionID.String(),
-		"handler_name": entry.HandlerName,
-		"handler_id":   entry.HandlerID,
-		"input_file":   entry.InputFile,
-		"output_file":  entry.OutputFile,
-		"flow_object":  entry.FlowObject,
-		"retry_count":  entry.RetryCount,
+		"session_id":     entry.SessionID.String(),
+		"processor_name": entry.ProcessorName,
+		"processor_id":   entry.ProcessorID,
+		"input_file":     entry.InputFile,
+		"output_file":    entry.OutputFile,
+		"flow_object":    entry.FlowObject,
+		"retry_count":    entry.RetryCount,
 	}).Info("WAL entry recorded")
 }

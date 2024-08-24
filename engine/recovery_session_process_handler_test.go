@@ -36,11 +36,11 @@ func TestGetProcessHandlerForSession(t *testing.T) {
 		utils.CopyFile = mockUtils.copyFileNoError
 
 		entry := repo.LogEntry{
-			SessionID:  sessionID,
-			HandlerID:  "__init__",
-			InputFile:  "input/path/file.txt",
-			OutputFile: "output/path/file.txt",
-			FlowObject: definitions.EngineFlowObject{Metadata: map[string]interface{}{"key": "value"}},
+			SessionID:   sessionID,
+			ProcessorID: "__init__",
+			InputFile:   "input/path/file.txt",
+			OutputFile:  "output/path/file.txt",
+			FlowObject:  definitions.EngineFlowObject{Metadata: map[string]interface{}{"key": "value"}},
 		}
 
 		engine := Engine{}
@@ -55,11 +55,11 @@ func TestGetProcessHandlerForSession(t *testing.T) {
 		utils.CopyFile = mockUtils.copyFileError
 
 		entry := repo.LogEntry{
-			SessionID:  sessionID,
-			HandlerID:  "__init__",
-			InputFile:  "input/path/file.txt",
-			OutputFile: "output/path/file.txt",
-			FlowObject: definitions.EngineFlowObject{Metadata: map[string]interface{}{"key": "value"}},
+			SessionID:   sessionID,
+			ProcessorID: "__init__",
+			InputFile:   "input/path/file.txt",
+			OutputFile:  "output/path/file.txt",
+			FlowObject:  definitions.EngineFlowObject{Metadata: map[string]interface{}{"key": "value"}},
 		}
 
 		engine := Engine{}
@@ -73,11 +73,11 @@ func TestGetProcessHandlerForSession(t *testing.T) {
 	t.Run("Recovery from handler state", func(t *testing.T) {
 		utils.CopyFile = mockUtils.copyFileNoError
 		entry := repo.LogEntry{
-			SessionID:  sessionID,
-			HandlerID:  "handler1",
-			InputFile:  "input/path/file.txt",
-			OutputFile: "output/path/file.txt",
-			FlowObject: definitions.EngineFlowObject{Metadata: map[string]interface{}{"key": "value"}},
+			SessionID:   sessionID,
+			ProcessorID: "handler1",
+			InputFile:   "input/path/file.txt",
+			OutputFile:  "output/path/file.txt",
+			FlowObject:  definitions.EngineFlowObject{Metadata: map[string]interface{}{"key": "value"}},
 		}
 
 		engine := Engine{}
