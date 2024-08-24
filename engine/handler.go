@@ -122,7 +122,7 @@ func (e *Engine) scheduleRetry(
 	}
 	e.writeAheadLogger.WriteEntry(logEntry)
 
-	// Schedule the retry
+	// schedule the retry
 	time.AfterFunc(backOffInterval, func() {
 		e.retryQueue <- retryTask{
 			flow:        flow,
@@ -136,17 +136,15 @@ func (e *Engine) scheduleRetry(
 
 func (e *Engine) retryTask(task retryTask) {
 	if task.processorID == "__init__" {
-		// Handle the init retry
-		e.log.Debugf("retrying init for session %s", task.sessionID)
+		e.log.Infof("retrying init for session %s", task.sessionID)
 
-		// Attempt the init process again
 		i := definitions.EngineIncomingObject{
 			Filepath: task.fileHandler.GetInputFile(),
 			Metadata: task.flow.Metadata,
 		}
 		e.handleFile(i)
 	} else {
-		// Existing logic for other handlers
+		// existing logic for other handlers
 		hCtx := e.findHandlerContext(task.processorID)
 		if hCtx == nil {
 			e.log.Errorf("processor with ID %s not found during retry", task.processorID)
