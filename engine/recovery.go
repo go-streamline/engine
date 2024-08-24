@@ -27,7 +27,7 @@ func (e *Engine) Recover() error {
 	for sessionID, lastEntry := range sessionMap {
 		fileHandler, flow, err := e.getProcessHandlerForSession(sessionID, lastEntry)
 		if err != nil {
-			if !e.IgnoreRecoveryErrors {
+			if !e.ignoreRecoveryErrors {
 				return err
 			}
 			continue

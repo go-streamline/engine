@@ -5,7 +5,6 @@ import (
 	"github.com/go-streamline/core/config"
 	"github.com/go-streamline/core/definitions"
 	"github.com/go-streamline/core/repo"
-	"github.com/go-streamline/core/utils"
 	"github.com/google/uuid"
 	"os"
 	"time"
@@ -36,7 +35,7 @@ func (e *Engine) executeProcessors(flow *definitions.EngineFlowObject, fileHandl
 			e.writeAheadLogger.WriteEntry(logEntry)
 			e.log.Debugf("deep copying flow object for processor %s (%s)", h.Name(), processorID)
 
-			copiedFlow, err := utils.DeepCopy(flow)
+			copiedFlow, err := DeepCopier.DeepCopyFlowObject(flow)
 			if err != nil {
 				e.log.WithError(err).Error("failed to copy flow object")
 				e.sessionUpdatesChannel <- definitions.SessionUpdate{
