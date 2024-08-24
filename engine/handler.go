@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/go-streamline/core/config"
 	"github.com/go-streamline/core/definitions"
+	"github.com/go-streamline/core/errors"
 	"github.com/go-streamline/core/repo"
 	"github.com/google/uuid"
 	"os"
@@ -41,14 +42,13 @@ func (e *Engine) executeProcessors(flow *definitions.EngineFlowObject, fileHandl
 				e.sessionUpdatesChannel <- definitions.SessionUpdate{
 					SessionID: sessionID,
 					Finished:  false,
-					Error:     err,
+					Error:     fmt.Errorf("%w: %v", errors.CouldNotDeepCopyFlowObject, err),
 				}
 				return err
 			}
 
 			e.log.Debugf("handling %s with processor %s", fileHandler.GetInputFile(), h.Name())
 
-			// Execute without retry loop
 			newFlow, err := h.Execute(copiedFlow, fileHandler)
 			if err != nil {
 				e.log.WithError(err).Warnf("processor %s failed, scheduling retry", h.Name())
@@ -65,7 +65,7 @@ func (e *Engine) executeProcessors(flow *definitions.EngineFlowObject, fileHandl
 				e.sessionUpdatesChannel <- definitions.SessionUpdate{
 					SessionID: sessionID,
 					Finished:  false,
-					Error:     err,
+					Error:     fmt.Errorf("%w: %v", errors.FailedToGenerateNewFileHandler, err),
 				}
 				return err
 			}
@@ -73,7 +73,7 @@ func (e *Engine) executeProcessors(flow *definitions.EngineFlowObject, fileHandl
 	}
 
 	if !resume {
-		e.log.Warnf("no processor were executed, go-streamline will not write the output file")
+		e.log.Warnf("no processor was executed, go-streamline will not write the output file")
 	}
 
 	inputFile := fileHandler.GetInputFile()
@@ -109,7 +109,6 @@ func (e *Engine) scheduleRetry(
 	backOffInterval time.Duration,
 	attempts int,
 ) {
-	// Log the retry attempt in the WAL
 	logEntry := repo.LogEntry{
 		SessionID:     sessionID,
 		ProcessorName: "__retry__",
@@ -121,7 +120,6 @@ func (e *Engine) scheduleRetry(
 	}
 	e.writeAheadLogger.WriteEntry(logEntry)
 
-	// schedule the retry
 	time.AfterFunc(backOffInterval, func() {
 		e.retryQueue <- retryTask{
 			flow:        flow,
@@ -134,56 +132,46 @@ func (e *Engine) scheduleRetry(
 }
 
 func (e *Engine) retryTask(task retryTask) {
-	if task.processorID == "__init__" {
-		e.log.Infof("retrying init for session %s", task.sessionID)
-
-		i := definitions.EngineIncomingObject{
-			Filepath: task.fileHandler.GetInputFile(),
-			Metadata: task.flow.Metadata,
+	pCtx := e.findHandlerContext(task.processorID)
+	if pCtx == nil {
+		e.log.Errorf("processor with ID %s not found during retry", task.processorID)
+		e.sessionUpdatesChannel <- definitions.SessionUpdate{
+			SessionID: task.sessionID,
+			Finished:  true,
+			Error:     fmt.Errorf("%w: %s", errors.ProcessorNotFound, task.processorID),
 		}
-		e.handleFile(i)
-	} else {
-		// existing logic for other handlers
-		hCtx := e.findHandlerContext(task.processorID)
-		if hCtx == nil {
-			e.log.Errorf("processor with ID %s not found during retry", task.processorID)
+		return
+	}
+
+	e.log.Debugf("retrying processor %s for session %s, attempt %d", task.processorID, task.sessionID, task.attempts)
+
+	newFlow, err := pCtx.Processor.Execute(task.flow, task.fileHandler)
+	if err != nil {
+		finalErr := fmt.Errorf("%w: procssor %s failed: %v", errors.ProcessorFailed, pCtx.Processor, err)
+		if task.attempts < pCtx.Retry.MaxRetries {
+			e.log.WithError(err).Warnf("retrying processor %s (%d/%d)", pCtx.Processor.Name(), task.attempts+1, pCtx.Retry.MaxRetries)
+			e.scheduleRetry(task.flow, task.fileHandler, task.processorID, task.sessionID, pCtx.Retry.BackOffInterval, task.attempts+1)
+			e.sessionUpdatesChannel <- definitions.SessionUpdate{
+				SessionID: task.sessionID,
+				Finished:  false,
+				Error:     finalErr,
+			}
+		} else {
+			e.log.WithError(err).Errorf("failed to handle %s with processor %s after %d attempts", task.fileHandler.GetInputFile(), pCtx.Processor.Name(), pCtx.Retry.MaxRetries)
 			e.sessionUpdatesChannel <- definitions.SessionUpdate{
 				SessionID: task.sessionID,
 				Finished:  true,
-				Error:     fmt.Errorf("handler with ID %s not found", task.processorID),
+				Error:     finalErr,
 			}
-			return
 		}
-
-		e.log.Debugf("retrying processor %s for session %s, attempt %d", task.processorID, task.sessionID, task.attempts)
-
-		newFlow, err := hCtx.Processor.Execute(task.flow, task.fileHandler)
+	} else {
+		err = e.executeProcessors(newFlow, task.fileHandler, task.processorID, task.sessionID)
 		if err != nil {
-			if task.attempts < hCtx.Retry.MaxRetries {
-				e.log.WithError(err).Warnf("retrying processor %s (%d/%d)", hCtx.Processor.Name(), task.attempts+1, hCtx.Retry.MaxRetries)
-				e.scheduleRetry(task.flow, task.fileHandler, task.processorID, task.sessionID, hCtx.Retry.BackOffInterval, task.attempts+1)
-				e.sessionUpdatesChannel <- definitions.SessionUpdate{
-					SessionID: task.sessionID,
-					Finished:  false,
-					Error:     err,
-				}
-			} else {
-				e.log.WithError(err).Errorf("failed to handle %s with processor %s after %d attempts", task.fileHandler.GetInputFile(), hCtx.Processor.Name(), hCtx.Retry.MaxRetries)
-				e.sessionUpdatesChannel <- definitions.SessionUpdate{
-					SessionID: task.sessionID,
-					Finished:  true,
-					Error:     err,
-				}
-			}
-		} else {
-			err = e.executeProcessors(newFlow, task.fileHandler, task.processorID, task.sessionID)
-			if err != nil {
-				e.log.WithError(err).Errorf("failed to execute processors for session %s", task.sessionID)
-				e.sessionUpdatesChannel <- definitions.SessionUpdate{
-					SessionID: task.sessionID,
-					Finished:  true,
-					Error:     err,
-				}
+			e.log.WithError(err).Errorf("failed to execute processors for session %s", task.sessionID)
+			e.sessionUpdatesChannel <- definitions.SessionUpdate{
+				SessionID: task.sessionID,
+				Finished:  true,
+				Error:     fmt.Errorf("%w: %v", errors.FailedToExecuteProcessors, err),
 			}
 		}
 	}

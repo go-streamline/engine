@@ -8,8 +8,9 @@ import (
 	"github.com/go-streamline/core/errors"
 	"github.com/go-streamline/core/repo"
 	"github.com/go-streamline/core/utils"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"path"
+	"io"
 )
 
 func New(ctx context.Context, config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger) (*Engine, error) {
@@ -29,7 +30,6 @@ func New(ctx context.Context, config *config.Config, writeAheadLogger repo.Write
 		ctx:                   ctx,
 		incomingQueue:         make(chan definitions.EngineIncomingObject),
 		sessionUpdatesChannel: make(chan definitions.SessionUpdate),
-		contentsDir:           path.Join(config.Workdir, "contents"),
 		writeAheadLogger:      writeAheadLogger,
 		ignoreRecoveryErrors:  config.IgnoreRecoveryErrors,
 		workerPool:            pond.New(config.MaxWorkers, config.MaxWorkers),
@@ -49,8 +49,14 @@ func NewWithDefaults(ctx context.Context, writeAheadLogger repo.WriteAheadLogger
 		}, writeAheadLogger, log)
 }
 
-func (e *Engine) Submit(i definitions.EngineIncomingObject) {
-	e.incomingQueue <- i
+func (e *Engine) Submit(metadata map[string]interface{}, reader io.Reader) uuid.UUID {
+	sessionID := uuid.New()
+	e.incomingQueue <- definitions.EngineIncomingObject{
+		Metadata:  metadata,
+		Reader:    reader,
+		SessionID: sessionID,
+	}
+	return sessionID
 }
 
 func (e *Engine) SessionUpdates() <-chan definitions.SessionUpdate {

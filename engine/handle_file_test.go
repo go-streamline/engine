@@ -40,7 +40,7 @@ func TestHandleFile_Success(t *testing.T) {
 	mockFileHandler.On("GetOutputFile").Return("testDir/outputFile")
 	mockFileHandler.On("GenerateNewFileHandler").Return(mockFileHandler, nil)
 
-	engine.handleFile(definitions.EngineIncomingObject{Filepath: filePath})
+	engine.handleFile(definitions.EngineIncomingObject{Reader: filePath})
 
 	select {
 	case update := <-engine.sessionUpdatesChannel:
@@ -82,7 +82,7 @@ func TestHandleFile_CopyFileError(t *testing.T) {
 	mockWAL.On("WriteEntry", walEntry).Return()
 	mockUtils.On("CopyFile", filePath, "testDir/outputFile").Return(errors.New("copy error"))
 
-	engine.handleFile(definitions.EngineIncomingObject{Filepath: filePath})
+	engine.handleFile(definitions.EngineIncomingObject{Reader: filePath})
 
 	select {
 	case task := <-engine.retryQueue:

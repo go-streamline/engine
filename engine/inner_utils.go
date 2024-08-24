@@ -6,10 +6,10 @@ import (
 	"github.com/go-streamline/core/utils"
 )
 
+// DeepCopyWrapper meant for mocks
 type DeepCopyWrapper struct{}
 
-// for mocks
-func (d DeepCopyWrapper) DeepCopyFlowObject(input *definitions.EngineFlowObject) (*definitions.EngineFlowObject, error) { // for mocks
+func (d DeepCopyWrapper) DeepCopyFlowObject(input *definitions.EngineFlowObject) (*definitions.EngineFlowObject, error) {
 	return utils.DeepCopy(input)
 }
 

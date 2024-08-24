@@ -2,16 +2,18 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"github.com/alitto/pond"
 	"github.com/go-streamline/core/config"
 	"github.com/go-streamline/core/definitions"
+	"github.com/go-streamline/core/errors"
 	"github.com/go-streamline/core/filehandler"
 	"github.com/go-streamline/core/repo"
-	"github.com/go-streamline/core/utils"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"io"
+	"os"
 	"path"
-	"time"
 )
 
 type Engine struct {
@@ -61,27 +63,32 @@ func transformIncomingObjectToFlowObject(i definitions.EngineIncomingObject) def
 }
 
 func (e *Engine) handleFile(i definitions.EngineIncomingObject) {
-	var err error
-	sessionID := uuid.New()
-	e.log.Debugf("handling file %s with sessionID %s", i.Filepath, sessionID)
+	sessionID := i.SessionID
+	e.log.Debugf("handling sessionID %s", sessionID)
 
 	flow := transformIncomingObjectToFlowObject(i)
 	input := path.Join(e.contentsDir, uuid.NewString())
 
-	walEntry := repo.LogEntry{
-		SessionID:     sessionID,
-		ProcessorName: "__init__",
-		ProcessorID:   "__init__",
-		InputFile:     i.Filepath,
-		OutputFile:    input,
-		FlowObject:    flow,
-	}
-	e.writeAheadLogger.WriteEntry(walEntry)
-
-	err = utils.CopyFile(i.Filepath, input)
+	file, err := os.Create(input)
 	if err != nil {
-		e.log.WithError(err).Errorf("failed to copy file %s to contents folder", i.Filepath)
-		e.scheduleInitRetry(i, sessionID)
+		e.log.WithError(err).Errorf("failed to create file %s", input)
+		e.sessionUpdatesChannel <- definitions.SessionUpdate{
+			SessionID: sessionID,
+			Finished:  true,
+			Error:     fmt.Errorf("%w: %v", errors.FailedToCreateFile, err),
+		}
+		return
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, i.Reader)
+	if err != nil {
+		e.log.WithError(err).Error("failed to copy data to file")
+		e.sessionUpdatesChannel <- definitions.SessionUpdate{
+			SessionID: sessionID,
+			Finished:  true,
+			Error:     fmt.Errorf("%w: %v", errors.FailedToCopyJobToContentsFolder, err),
+		}
 		return
 	}
 
@@ -90,13 +97,10 @@ func (e *Engine) handleFile(i definitions.EngineIncomingObject) {
 	err = e.executeProcessors(&flow, fileHandler, "", sessionID)
 	if err != nil {
 		e.log.WithError(err).Error("failed to execute processors")
-		walEntry.ProcessorName = "__end__"
-		walEntry.ProcessorID = "__end__"
-		e.writeAheadLogger.WriteEntry(walEntry)
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: sessionID,
 			Finished:  true,
-			Error:     err,
+			Error:     fmt.Errorf("%w: %v", errors.FailedToExecuteProcessors, err),
 		}
 		return
 	}
@@ -106,29 +110,4 @@ func (e *Engine) handleFile(i definitions.EngineIncomingObject) {
 		Finished:  true,
 		Error:     nil,
 	}
-}
-
-func (e *Engine) scheduleInitRetry(i definitions.EngineIncomingObject, sessionID uuid.UUID) {
-	// log the retry attempt in the WAL
-	e.log.Infof("scheduling retry for init of session %s", sessionID)
-	walEntry := repo.LogEntry{
-		SessionID:     sessionID,
-		ProcessorName: "__init__",
-		ProcessorID:   "__init__",
-		InputFile:     i.Filepath,
-		OutputFile:    "",
-		FlowObject:    transformIncomingObjectToFlowObject(i),
-		RetryCount:    0, // no retry limit for init
-	}
-	e.writeAheadLogger.WriteEntry(walEntry)
-
-	time.AfterFunc(e.config.InitRetryBackOff, func() {
-		e.retryQueue <- retryTask{
-			flow:        &walEntry.FlowObject,
-			fileHandler: filehandler.NewEngineFileHandler(i.Filepath), // retry from the original file path
-			processorID: "__init__",
-			sessionID:   sessionID,
-			attempts:    0, // no limit on attempts for init
-		}
-	})
 }
