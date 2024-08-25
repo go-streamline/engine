@@ -18,51 +18,53 @@ import (
 
 type Engine struct {
 	config                *config.Config
-	Processors            []config.ProcessorConfig
+	ProcessorListHead     *processorNode
 	ctx                   context.Context
-	incomingQueue         chan definitions.EngineIncomingObject
+	cancelFunc            context.CancelFunc
+	processingQueue       chan processingJob
 	sessionUpdatesChannel chan definitions.SessionUpdate
 	contentsDir           string
 	writeAheadLogger      repo.WriteAheadLogger
 	ignoreRecoveryErrors  bool
 	workerPool            *pond.WorkerPool
 	log                   *logrus.Logger
-	retryQueue            chan retryTask
 }
 
-type retryTask struct {
-	flow        *definitions.EngineFlowObject
-	fileHandler definitions.EngineFileHandler
-	processorID string
+type processorNode struct {
+	ProcessorConfig config.ProcessorConfig
+	Next            *processorNode
+}
+
+type processingJob struct {
 	sessionID   uuid.UUID
 	attempts    int
+	flow        *definitions.EngineFlowObject
+	fileHandler definitions.EngineFileHandler
+	currentNode *processorNode
 }
 
-func (e *Engine) handleFiles() {
+func (e *Engine) processJobs() {
 	for {
 		select {
 		case <-e.ctx.Done():
-			e.log.Infof("stopping worker")
+			e.log.Infof("stopping processor")
+			e.workerPool.Stop()
 			return
-		case i := <-e.incomingQueue:
+		case job := <-e.processingQueue:
 			e.workerPool.Submit(func() {
-				e.handleFile(i)
-			})
-		case task := <-e.retryQueue:
-			e.workerPool.Submit(func() {
-				e.retryTask(task)
+				e.processJob(job)
 			})
 		}
 	}
 }
 
-func transformIncomingObjectToFlowObject(i definitions.EngineIncomingObject) definitions.EngineFlowObject {
-	return definitions.EngineFlowObject{
+func transformIncomingObjectToFlowObject(i *definitions.EngineIncomingObject) *definitions.EngineFlowObject {
+	return &definitions.EngineFlowObject{
 		Metadata: i.Metadata,
 	}
 }
 
-func (e *Engine) handleFile(i definitions.EngineIncomingObject) {
+func (e *Engine) processIncomingObject(i *definitions.EngineIncomingObject) {
 	sessionID := i.SessionID
 	e.log.Debugf("handling sessionID %s", sessionID)
 
@@ -93,21 +95,27 @@ func (e *Engine) handleFile(i definitions.EngineIncomingObject) {
 	}
 
 	fileHandler := filehandler.NewEngineFileHandler(input)
-
-	err = e.executeProcessors(&flow, fileHandler, "", sessionID)
-	if err != nil {
-		e.log.WithError(err).Error("failed to execute processors")
+	firstProcessorNode := e.ProcessorListHead
+	if firstProcessorNode != nil {
+		e.scheduleNextProcessor(sessionID, fileHandler, flow, firstProcessorNode, 0)
+	} else {
+		e.log.Warn("No processors available to handle the job")
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: sessionID,
 			Finished:  true,
+			Error:     errors.NoProcessorsAvailable,
+		}
+	}
+}
+
+func (e *Engine) processJob(job processingJob) {
+	err := e.executeProcessor(job.flow, job.fileHandler, job.sessionID, job.attempts, job.currentNode)
+	if err != nil {
+		e.log.WithError(err).Errorf("failed to execute processor for session %s", job.sessionID)
+		e.sessionUpdatesChannel <- definitions.SessionUpdate{
+			SessionID: job.sessionID,
+			Finished:  true,
 			Error:     fmt.Errorf("%w: %v", errors.FailedToExecuteProcessors, err),
 		}
-		return
-	}
-
-	e.sessionUpdatesChannel <- definitions.SessionUpdate{
-		SessionID: sessionID,
-		Finished:  true,
-		Error:     nil,
 	}
 }

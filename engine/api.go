@@ -13,7 +13,7 @@ import (
 	"io"
 )
 
-func New(ctx context.Context, config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger) (*Engine, error) {
+func New(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger) (*Engine, error) {
 	err := utils.CreateDirsIfNotExist(config.Workdir)
 	if err != nil {
 		return nil, errors.CouldNotCreateDirs
@@ -24,38 +24,56 @@ func New(ctx context.Context, config *config.Config, writeAheadLogger repo.Write
 		return nil, errors.CouldNotDeepCopyConfig
 	}
 
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
+	var head *processorNode
+	var tail *processorNode
+	for _, procConfig := range config.Processors {
+		node := &processorNode{ProcessorConfig: procConfig}
+		if head == nil {
+			head = node
+			tail = node
+		} else {
+			tail.Next = node
+			tail = node
+		}
+	}
+
 	return &Engine{
 		config:                config,
-		Processors:            config.Processors,
+		ProcessorListHead:     head,
 		ctx:                   ctx,
-		incomingQueue:         make(chan definitions.EngineIncomingObject),
+		cancelFunc:            cancelFunc,
+		processingQueue:       make(chan processingJob),
 		sessionUpdatesChannel: make(chan definitions.SessionUpdate),
 		writeAheadLogger:      writeAheadLogger,
-		ignoreRecoveryErrors:  config.IgnoreRecoveryErrors,
 		workerPool:            pond.New(config.MaxWorkers, config.MaxWorkers),
 		log:                   log,
-		retryQueue:            make(chan retryTask, config.MaxWorkers),
 	}, nil
 }
 
-func NewWithDefaults(ctx context.Context, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger, processors []config.ProcessorConfig) (*Engine, error) {
+func NewWithDefaults(writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger, processors []config.ProcessorConfig) (*Engine, error) {
 	return New(
-		ctx,
 		&config.Config{
-			MaxWorkers:           10,
-			Workdir:              "/tmp/go-streamline",
-			Processors:           processors,
-			IgnoreRecoveryErrors: false,
+			MaxWorkers: 10,
+			Workdir:    "/tmp/go-streamline",
+			Processors: processors,
 		}, writeAheadLogger, log)
+}
+
+func (e *Engine) Stop() {
+	e.cancelFunc()
 }
 
 func (e *Engine) Submit(metadata map[string]interface{}, reader io.Reader) uuid.UUID {
 	sessionID := uuid.New()
-	e.incomingQueue <- definitions.EngineIncomingObject{
-		Metadata:  metadata,
-		Reader:    reader,
-		SessionID: sessionID,
-	}
+	e.workerPool.Submit(func() {
+		e.processIncomingObject(&definitions.EngineIncomingObject{
+			Metadata:  metadata,
+			Reader:    reader,
+			SessionID: sessionID,
+		})
+	})
 	return sessionID
 }
 
@@ -69,7 +87,7 @@ func (e *Engine) Run() error {
 		return errors.RecoveryError
 	}
 	go func() {
-		e.handleFiles()
+		e.processJobs()
 	}()
 	return nil
 }

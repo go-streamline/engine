@@ -13,11 +13,10 @@ type WriteAheadLogging struct {
 }
 
 type Config struct {
-	Workdir              string            `json:"workdir"`
-	Processors           []ProcessorConfig `json:"processors"`
-	IgnoreRecoveryErrors bool              `json:"ignoreRecoveryErrors"`
-	MaxWorkers           int               `json:"maxWorkers"`
-	InitRetryBackOff     time.Duration     `json:"initRetryBackOff"`
+	Workdir          string            `json:"workdir"`
+	Processors       []ProcessorConfig `json:"processors"`
+	MaxWorkers       int               `json:"maxWorkers"`
+	InitRetryBackOff time.Duration     `json:"initRetryBackOff"`
 }
 
 type ProcessorConfig struct {
