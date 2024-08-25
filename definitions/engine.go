@@ -12,6 +12,7 @@ type EngineFlowObject struct {
 }
 
 type EngineIncomingObject struct {
+	FlowID    uuid.UUID
 	Metadata  map[string]interface{}
 	Reader    io.Reader
 	SessionID uuid.UUID

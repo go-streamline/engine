@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"github.com/alitto/pond"
 	"github.com/go-streamline/core/config"
 	"github.com/go-streamline/core/definitions"
@@ -10,10 +11,11 @@ import (
 	"github.com/go-streamline/core/utils"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 	"io"
 )
 
-func New(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger) (*Engine, error) {
+func New(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, db *gorm.DB) (*Engine, error) {
 	err := utils.CreateDirsIfNotExist(config.Workdir)
 	if err != nil {
 		return nil, errors.CouldNotCreateDirs
@@ -24,24 +26,26 @@ func New(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *log
 		return nil, errors.CouldNotDeepCopyConfig
 	}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
-
-	var head *processorNode
-	var tail *processorNode
-	for _, procConfig := range config.Processors {
-		node := &processorNode{ProcessorConfig: procConfig}
-		if head == nil {
-			head = node
-			tail = node
-		} else {
-			tail.Next = node
-			tail = node
+	if db == nil {
+		db, err = newSQLiteDB(config)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %s", errors.CouldNotGetDBConnection, err)
 		}
 	}
 
+	s, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", errors.CouldNotGetDBConnection, err)
+	}
+	if err = runMigrations(s, config.Workdir); err != nil {
+		return nil, fmt.Errorf("%w: %s", errors.CouldNotRunMigrations, err)
+	}
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
 	return &Engine{
 		config:                config,
-		ProcessorListHead:     head,
+		db:                    db,
 		ctx:                   ctx,
 		cancelFunc:            cancelFunc,
 		processingQueue:       make(chan processingJob),
@@ -49,16 +53,16 @@ func New(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *log
 		writeAheadLogger:      writeAheadLogger,
 		workerPool:            pond.New(config.MaxWorkers, config.MaxWorkers),
 		log:                   log,
+		processorFactory:      processorFactory,
 	}, nil
 }
 
-func NewWithDefaults(writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger, processors []config.ProcessorConfig) (*Engine, error) {
-	return New(
-		&config.Config{
-			MaxWorkers: 10,
-			Workdir:    "/tmp/go-streamline",
-			Processors: processors,
-		}, writeAheadLogger, log)
+func NewWithDefaults(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger, db *gorm.DB, supportedProcessorsList []definitions.Processor) (*Engine, error) {
+	defaultFactory := definitions.NewDefaultProcessorFactory()
+	for _, processor := range supportedProcessorsList {
+		defaultFactory.RegisterProcessor(processor)
+	}
+	return New(config, writeAheadLogger, log, defaultFactory, db)
 }
 
 func (e *Engine) Stop() {

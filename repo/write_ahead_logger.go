@@ -16,6 +16,7 @@ type LogEntry struct {
 	SessionID     uuid.UUID
 	ProcessorName string
 	ProcessorID   string
+	FlowID        uuid.UUID
 	InputFile     string
 	OutputFile    string
 	FlowObject    definitions.EngineFlowObject
@@ -108,6 +109,7 @@ func (l *DefaultWriteAheadLogger) WriteEntry(entry LogEntry) {
 		"session_id":     entry.SessionID.String(),
 		"processor_name": entry.ProcessorName,
 		"processor_id":   entry.ProcessorID,
+		"flow_id":        entry.FlowID.String(),
 		"input_file":     entry.InputFile,
 		"output_file":    entry.OutputFile,
 		"flow_object":    entry.FlowObject,

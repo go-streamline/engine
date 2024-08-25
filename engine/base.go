@@ -2,15 +2,18 @@ package engine
 
 import (
 	"context"
+	builtInErrors "errors"
 	"fmt"
 	"github.com/alitto/pond"
 	"github.com/go-streamline/core/config"
 	"github.com/go-streamline/core/definitions"
+	"github.com/go-streamline/core/engine/models"
 	"github.com/go-streamline/core/errors"
 	"github.com/go-streamline/core/filehandler"
 	"github.com/go-streamline/core/repo"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 	"io"
 	"os"
 	"path"
@@ -18,7 +21,6 @@ import (
 
 type Engine struct {
 	config                *config.Config
-	ProcessorListHead     *processorNode
 	ctx                   context.Context
 	cancelFunc            context.CancelFunc
 	processingQueue       chan processingJob
@@ -28,11 +30,8 @@ type Engine struct {
 	ignoreRecoveryErrors  bool
 	workerPool            *pond.WorkerPool
 	log                   *logrus.Logger
-}
-
-type processorNode struct {
-	ProcessorConfig config.ProcessorConfig
-	Next            *processorNode
+	db                    *gorm.DB
+	processorFactory      definitions.ProcessorFactory
 }
 
 type processingJob struct {
@@ -40,7 +39,7 @@ type processingJob struct {
 	attempts    int
 	flow        *definitions.EngineFlowObject
 	fileHandler definitions.EngineFileHandler
-	currentNode *processorNode
+	currentNode *models.Processor
 }
 
 func (e *Engine) processJobs() {
@@ -95,9 +94,19 @@ func (e *Engine) processIncomingObject(i *definitions.EngineIncomingObject) {
 	}
 
 	fileHandler := filehandler.NewEngineFileHandler(input)
-	firstProcessorNode := e.ProcessorListHead
-	if firstProcessorNode != nil {
-		e.scheduleNextProcessor(sessionID, fileHandler, flow, firstProcessorNode, 0)
+	firstProcessor, err := e.getFirstProcessorForFlow(sessionID)
+	if err != nil {
+		e.log.WithError(err).Error("failed to get first processor for flow")
+		e.sessionUpdatesChannel <- definitions.SessionUpdate{
+			SessionID: sessionID,
+			Finished:  true,
+			Error:     err,
+		}
+		return
+	}
+
+	if firstProcessor != nil {
+		e.scheduleNextProcessor(sessionID, fileHandler, flow, firstProcessor, 0)
 	} else {
 		e.log.Warn("No processors available to handle the job")
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
@@ -106,6 +115,18 @@ func (e *Engine) processIncomingObject(i *definitions.EngineIncomingObject) {
 			Error:     errors.NoProcessorsAvailable,
 		}
 	}
+}
+
+func (e *Engine) getFirstProcessorForFlow(flowID uuid.UUID) (*models.Processor, error) {
+	var processor models.Processor
+	err := e.db.Where("flow_id = ?", flowID).Order("flow_order asc").First(&processor).Error
+	if err != nil {
+		if builtInErrors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &processor, nil
 }
 
 func (e *Engine) processJob(job processingJob) {
