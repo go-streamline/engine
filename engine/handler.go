@@ -1,14 +1,12 @@
 package engine
 
 import (
-	builtInErrors "errors"
 	"fmt"
 	"github.com/go-streamline/core/definitions"
-	"github.com/go-streamline/core/engine/models"
 	"github.com/go-streamline/core/errors"
+	"github.com/go-streamline/core/models"
 	"github.com/go-streamline/core/repo"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandler definitions.EngineFileHandler, sessionID uuid.UUID, attempts int, currentNode *models.Processor) error {
@@ -57,28 +55,14 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 		return nil
 	}
 
-	nextProcessorNode, err := e.getNextProcessor(currentNode)
+	nextProcessorNode, err := e.flowManager.GetNextProcessor(currentNode.FlowID, currentNode.FlowOrder)
 	if err != nil {
 		e.log.WithError(err).Error("failed to find the next processor")
-		return err
+		return fmt.Errorf("%w: %v", errors.FailedToGetNextProcessor, err)
 	}
 
 	e.scheduleNextProcessor(sessionID, fileHandler, newFlow, nextProcessorNode, 0)
 	return nil
-}
-
-func (e *Engine) getNextProcessor(currentProcessor *models.Processor) (*models.Processor, error) {
-	var nextProcessor models.Processor
-	err := e.db.Where("flow_id = ? AND flow_order > ?", currentProcessor.FlowID, currentProcessor.FlowOrder).
-		Order("flow_order asc").
-		First(&nextProcessor).Error
-	if err != nil {
-		if builtInErrors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("%w: %v", errors.FailedToGetNextProcessor, err)
-	}
-	return &nextProcessor, nil
 }
 
 func (e *Engine) scheduleNextProcessor(

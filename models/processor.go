@@ -13,3 +13,7 @@ type Processor struct {
 	FlowOrder  int       `gorm:"column:flow_order;not null"`
 	MaxRetries int       `gorm:"column:max_retries;default:0"`
 }
+
+func (p *Processor) TableName() string {
+	return "processors"
+}

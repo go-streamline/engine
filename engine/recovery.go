@@ -1,9 +1,9 @@
 package engine
 
 import (
-	"github.com/go-streamline/core/engine/models"
 	"github.com/go-streamline/core/errors"
 	"github.com/go-streamline/core/filehandler"
+	"github.com/go-streamline/core/models"
 	"github.com/go-streamline/core/repo"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -27,7 +27,7 @@ func (e *Engine) recover() error {
 	for sessionID, lastEntry := range sessionMap {
 		fileHandler := filehandler.NewEngineFileHandler(lastEntry.InputFile)
 		flow := &lastEntry.FlowObject
-		currentNode, err := e.getProcessorByID(uuid.MustParse(lastEntry.ProcessorID))
+		currentNode, err := e.getProcessorByID(lastEntry.FlowID, uuid.MustParse(lastEntry.ProcessorID))
 		if err != nil {
 			e.log.WithError(err).Warnf("Failed to find processor with ID %s during recovery", lastEntry.ProcessorID)
 			continue
@@ -40,13 +40,12 @@ func (e *Engine) recover() error {
 	return nil
 }
 
-func (e *Engine) getProcessorByID(id uuid.UUID) (*models.Processor, error) {
-	var processor models.Processor
-	err := e.db.First(&processor, "id = ?", id).Error
+func (e *Engine) getProcessorByID(flowID uuid.UUID, id uuid.UUID) (*models.Processor, error) {
+	processor, err := e.flowManager.GetProcessorByID(flowID, id)
 	if err != nil {
 		return nil, errors.NewProcessorNotFoundError(id)
 	}
-	return &processor, nil
+	return processor, nil
 }
 
 func (e *Engine) createSessionIDToLastEntryMap(entries []repo.LogEntry) map[uuid.UUID]repo.LogEntry {

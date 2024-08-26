@@ -15,10 +15,11 @@ import (
 	"io"
 )
 
-func New(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, db *gorm.DB) (*Engine, error) {
+// New creates a new instance of Engine, may return the following errors: CouldNotCreateDirs, CouldNotDeepCopyConfig /**
+func New(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, flowManager definitions.FlowManager) (*Engine, error) {
 	err := utils.CreateDirsIfNotExist(config.Workdir)
 	if err != nil {
-		return nil, errors.CouldNotCreateDirs
+		return nil, fmt.Errorf("%w: %v", errors.CouldNotCreateDirs, err)
 	}
 
 	config, err = DeepCopier.DeepCopyConfig(config)
@@ -26,26 +27,10 @@ func New(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *log
 		return nil, errors.CouldNotDeepCopyConfig
 	}
 
-	if db == nil {
-		db, err = newSQLiteDB(config)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %s", errors.CouldNotGetDBConnection, err)
-		}
-	}
-
-	s, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("%w: %s", errors.CouldNotGetDBConnection, err)
-	}
-	if err = runMigrations(s, config.Workdir); err != nil {
-		return nil, fmt.Errorf("%w: %s", errors.CouldNotRunMigrations, err)
-	}
-
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	return &Engine{
 		config:                config,
-		db:                    db,
 		ctx:                   ctx,
 		cancelFunc:            cancelFunc,
 		processingQueue:       make(chan processingJob),
@@ -54,25 +39,31 @@ func New(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *log
 		workerPool:            pond.New(config.MaxWorkers, config.MaxWorkers),
 		log:                   log,
 		processorFactory:      processorFactory,
+		flowManager:           flowManager,
 	}, nil
 }
 
+// NewWithDefaults creates Engine with as least effort as possible. Will create a default flow manager using db and return any error it my return wrapped in CouldNotCreateFlowManager.  /**
 func NewWithDefaults(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger, db *gorm.DB, supportedProcessorsList []definitions.Processor) (*Engine, error) {
 	defaultFactory := definitions.NewDefaultProcessorFactory()
 	for _, processor := range supportedProcessorsList {
 		defaultFactory.RegisterProcessor(processor)
 	}
-	return New(config, writeAheadLogger, log, defaultFactory, db)
+	flowManager, err := repo.NewDefaultFlowManager(db, config.Workdir)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", errors.CouldNotCreateFlowManager, err)
+	}
+	return New(config, writeAheadLogger, log, defaultFactory, flowManager)
 }
 
 func (e *Engine) Stop() {
 	e.cancelFunc()
 }
 
-func (e *Engine) Submit(metadata map[string]interface{}, reader io.Reader) uuid.UUID {
+func (e *Engine) Submit(flowID uuid.UUID, metadata map[string]interface{}, reader io.Reader) uuid.UUID {
 	sessionID := uuid.New()
 	e.workerPool.Submit(func() {
-		e.processIncomingObject(&definitions.EngineIncomingObject{
+		e.processIncomingObject(flowID, &definitions.EngineIncomingObject{
 			Metadata:  metadata,
 			Reader:    reader,
 			SessionID: sessionID,

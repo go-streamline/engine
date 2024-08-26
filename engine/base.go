@@ -2,18 +2,16 @@ package engine
 
 import (
 	"context"
-	builtInErrors "errors"
 	"fmt"
 	"github.com/alitto/pond"
 	"github.com/go-streamline/core/config"
 	"github.com/go-streamline/core/definitions"
-	"github.com/go-streamline/core/engine/models"
 	"github.com/go-streamline/core/errors"
 	"github.com/go-streamline/core/filehandler"
+	"github.com/go-streamline/core/models"
 	"github.com/go-streamline/core/repo"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
 	"io"
 	"os"
 	"path"
@@ -30,8 +28,8 @@ type Engine struct {
 	ignoreRecoveryErrors  bool
 	workerPool            *pond.WorkerPool
 	log                   *logrus.Logger
-	db                    *gorm.DB
 	processorFactory      definitions.ProcessorFactory
+	flowManager           definitions.FlowManager
 }
 
 type processingJob struct {
@@ -63,7 +61,7 @@ func transformIncomingObjectToFlowObject(i *definitions.EngineIncomingObject) *d
 	}
 }
 
-func (e *Engine) processIncomingObject(i *definitions.EngineIncomingObject) {
+func (e *Engine) processIncomingObject(flowID uuid.UUID, i *definitions.EngineIncomingObject) {
 	sessionID := i.SessionID
 	e.log.Debugf("handling sessionID %s", sessionID)
 
@@ -94,7 +92,7 @@ func (e *Engine) processIncomingObject(i *definitions.EngineIncomingObject) {
 	}
 
 	fileHandler := filehandler.NewEngineFileHandler(input)
-	firstProcessor, err := e.getFirstProcessorForFlow(sessionID)
+	firstProcessor, err := e.flowManager.GetFirstProcessorForFlow(flowID)
 	if err != nil {
 		e.log.WithError(err).Error("failed to get first processor for flow")
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
@@ -115,18 +113,6 @@ func (e *Engine) processIncomingObject(i *definitions.EngineIncomingObject) {
 			Error:     errors.NoProcessorsAvailable,
 		}
 	}
-}
-
-func (e *Engine) getFirstProcessorForFlow(flowID uuid.UUID) (*models.Processor, error) {
-	var processor models.Processor
-	err := e.db.Where("flow_id = ?", flowID).Order("flow_order asc").First(&processor).Error
-	if err != nil {
-		if builtInErrors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &processor, nil
 }
 
 func (e *Engine) processJob(job processingJob) {

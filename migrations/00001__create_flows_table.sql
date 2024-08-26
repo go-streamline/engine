@@ -2,8 +2,9 @@
 CREATE TABLE flows (
                        id UUID PRIMARY KEY,
                        name TEXT NOT NULL,
-                       flow_order INT NOT NULL,
-                       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                       description TEXT,
+                       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+                       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
 );
 
 -- +goose Down

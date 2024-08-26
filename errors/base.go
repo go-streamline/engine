@@ -7,6 +7,7 @@ var FailedToGenerateNewFileHandler = fmt.Errorf("failed to generate new file han
 var ProcessorNotFound = fmt.Errorf("failed to find processor")
 var ErrProcessorFailed = fmt.Errorf("processor failed")
 var FailedToGetNextProcessor = fmt.Errorf("failed to get next processor")
+var CouldNotCreateFlowManager = fmt.Errorf("could not create flow manager")
 
 type ProcessorFailed struct {
 	ProcessorName string
