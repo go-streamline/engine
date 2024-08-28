@@ -4,6 +4,7 @@ import (
 	"github.com/go-streamline/core/utils"
 	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
+	"github.com/sirupsen/logrus"
 	"io"
 )
 
@@ -37,7 +38,8 @@ func (b *BaseProcessor) DecodeMap(input interface{}, output interface{}) error {
 type Processor interface {
 	GetID() string
 	Name() string
-	Execute(info *EngineFlowObject, fileHandler ProcessorFileHandler) (*EngineFlowObject, error)
+	Execute(info *EngineFlowObject, fileHandler ProcessorFileHandler, log *logrus.Logger) (*EngineFlowObject, error)
+	SetConfig(config map[string]interface{}) error
 }
 
 type ProcessorFileHandler interface {

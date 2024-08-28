@@ -29,6 +29,14 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
+func OpenFile(path string) (*os.File, error) {
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
 func createDirsIfNotExist(path ...string) error {
 	for _, p := range path {
 		if _, err := os.Stat(p); os.IsNotExist(err) {

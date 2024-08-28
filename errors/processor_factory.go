@@ -3,25 +3,24 @@ package errors
 import (
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 )
 
-var ErrProcessorsNotFound = errors.New("config not found")
+var ErrProcessorTypeNotFound = errors.New("processor type not found")
 
-type ProcessorNotFoundError struct {
-	ID uuid.UUID
+type ProcessorTypeNotFound struct {
+	Type string
 }
 
-func (e *ProcessorNotFoundError) Error() string {
-	return fmt.Sprintf("config %s not found", e.ID)
+func (e *ProcessorTypeNotFound) Error() string {
+	return fmt.Sprintf("processor type %s not found", e.Type)
 }
 
-func (e *ProcessorNotFoundError) Is(target error) bool {
-	return target == ErrProcessorsNotFound
+func (e *ProcessorTypeNotFound) Is(target error) bool {
+	return target == ErrProcessorTypeNotFound
 }
 
-func NewProcessorNotFoundError(id uuid.UUID) error {
-	return &ProcessorNotFoundError{
-		ID: id,
+func NewProcessorTypeNotFoundError(t string) error {
+	return &ProcessorTypeNotFound{
+		Type: t,
 	}
 }

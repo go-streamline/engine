@@ -33,7 +33,7 @@ func (f *DefaultProcessorFactory) RegisterProcessor(processor Processor) {
 func (f *DefaultProcessorFactory) GetProcessor(typeName string) (Processor, error) {
 	processorType, exists := f.processorMap[typeName]
 	if !exists {
-		return nil, errors.NewProcessorNotFoundError(typeName)
+		return nil, errors.NewProcessorTypeNotFoundError(typeName)
 	}
 
 	processorInstance := reflect.New(processorType).Interface().(Processor)
