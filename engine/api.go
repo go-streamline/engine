@@ -6,7 +6,6 @@ import (
 	"github.com/alitto/pond"
 	"github.com/go-streamline/core/config"
 	"github.com/go-streamline/core/definitions"
-	"github.com/go-streamline/core/errors"
 	"github.com/go-streamline/core/repo"
 	"github.com/go-streamline/core/utils"
 	"github.com/google/uuid"
@@ -15,16 +14,21 @@ import (
 	"io"
 )
 
+var ErrCouldNotCreateFlowManager = fmt.Errorf("could not create flow manager")
+var ErrCouldNotCreateDirs = fmt.Errorf("could not create work directories")
+var ErrRecoveryFailed = fmt.Errorf("failed to recover, if you don't want to recover, please delete the WAL file or set IgnoreRecoveryErrors to true")
+var ErrCouldNotDeepCopyConfig = fmt.Errorf("could not deep copy config")
+
 // New creates a new instance of Engine, may return the following errors: CouldNotCreateDirs, CouldNotDeepCopyConfig /**
 func New(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, flowManager definitions.FlowManager) (*Engine, error) {
 	err := utils.CreateDirsIfNotExist(config.Workdir)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", errors.CouldNotCreateDirs, err)
+		return nil, fmt.Errorf("%w: %v", ErrCouldNotCreateDirs, err)
 	}
 
 	config, err = DeepCopier.DeepCopyConfig(config)
 	if err != nil {
-		return nil, errors.CouldNotDeepCopyConfig
+		return nil, fmt.Errorf("%w: %v", ErrCouldNotDeepCopyConfig, err)
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -51,7 +55,7 @@ func NewWithDefaults(config *config.Config, writeAheadLogger repo.WriteAheadLogg
 	}
 	flowManager, err := repo.NewDefaultFlowManager(db, config.Workdir)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", errors.CouldNotCreateFlowManager, err)
+		return nil, fmt.Errorf("%w: %v", ErrCouldNotCreateFlowManager, err)
 	}
 	return New(config, writeAheadLogger, log, defaultFactory, flowManager)
 }
@@ -79,7 +83,7 @@ func (e *Engine) SessionUpdates() <-chan definitions.SessionUpdate {
 func (e *Engine) Run() error {
 	err := e.recover()
 	if err != nil && !e.ignoreRecoveryErrors {
-		return errors.RecoveryError
+		return ErrRecoveryFailed
 	}
 	go func() {
 		e.processJobs()

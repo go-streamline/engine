@@ -6,7 +6,6 @@ import (
 	"github.com/alitto/pond"
 	"github.com/go-streamline/core/config"
 	"github.com/go-streamline/core/definitions"
-	"github.com/go-streamline/core/errors"
 	"github.com/go-streamline/core/filehandler"
 	"github.com/go-streamline/core/models"
 	"github.com/go-streamline/core/repo"
@@ -16,6 +15,11 @@ import (
 	"os"
 	"path"
 )
+
+var ErrFailedToCreateFile = fmt.Errorf("failed to create initial job file")
+var ErrFailedToCopyJobToContentsFolder = fmt.Errorf("failed to copy job to contents folder")
+var ErrFailedToExecuteProcessors = fmt.Errorf("failed to execute processors")
+var ErrNoProcessorsAvailable = fmt.Errorf("no processors available")
 
 type Engine struct {
 	config                *config.Config
@@ -74,7 +78,7 @@ func (e *Engine) processIncomingObject(flowID uuid.UUID, i *definitions.EngineIn
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: sessionID,
 			Finished:  true,
-			Error:     fmt.Errorf("%w: %v", errors.FailedToCreateFile, err),
+			Error:     fmt.Errorf("%w: %v", ErrFailedToCreateFile, err),
 		}
 		return
 	}
@@ -86,7 +90,7 @@ func (e *Engine) processIncomingObject(flowID uuid.UUID, i *definitions.EngineIn
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: sessionID,
 			Finished:  true,
-			Error:     fmt.Errorf("%w: %v", errors.FailedToCopyJobToContentsFolder, err),
+			Error:     fmt.Errorf("%w: %v", ErrFailedToCopyJobToContentsFolder, err),
 		}
 		return
 	}
@@ -110,7 +114,7 @@ func (e *Engine) processIncomingObject(flowID uuid.UUID, i *definitions.EngineIn
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: sessionID,
 			Finished:  true,
-			Error:     errors.NoProcessorsAvailable,
+			Error:     ErrNoProcessorsAvailable,
 		}
 	}
 }
@@ -122,7 +126,7 @@ func (e *Engine) processJob(job processingJob) {
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: job.sessionID,
 			Finished:  true,
-			Error:     fmt.Errorf("%w: %v", errors.FailedToExecuteProcessors, err),
+			Error:     fmt.Errorf("%w: %v", ErrFailedToExecuteProcessors, err),
 		}
 	}
 }

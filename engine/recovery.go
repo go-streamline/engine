@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"github.com/go-streamline/core/errors"
 	"github.com/go-streamline/core/filehandler"
 	"github.com/go-streamline/core/models"
 	"github.com/go-streamline/core/repo"
@@ -43,7 +42,7 @@ func (e *Engine) recover() error {
 func (e *Engine) getProcessorByID(flowID uuid.UUID, id uuid.UUID) (*models.Processor, error) {
 	processor, err := e.flowManager.GetProcessorByID(flowID, id)
 	if err != nil {
-		return nil, errors.NewProcessorNotFoundError(id)
+		return nil, newProcessorNotFoundError(id)
 	}
 	return processor, nil
 }

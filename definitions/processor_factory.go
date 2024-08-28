@@ -1,10 +1,30 @@
 package definitions
 
 import (
+	"errors"
 	"fmt"
-	"github.com/go-streamline/core/errors"
 	"reflect"
 )
+
+var ErrProcessorTypeNotFound = errors.New("processor type not found")
+
+type processorTypeNotFound struct {
+	Type string
+}
+
+func (e *processorTypeNotFound) Error() string {
+	return fmt.Sprintf("processor type %s not found", e.Type)
+}
+
+func (e *processorTypeNotFound) Is(target error) bool {
+	return target == ErrProcessorTypeNotFound
+}
+
+func newProcessorTypeNotFoundError(t string) error {
+	return &processorTypeNotFound{
+		Type: t,
+	}
+}
 
 // ProcessorFactory defines an interface for retrieving processors.
 type ProcessorFactory interface {
@@ -33,7 +53,7 @@ func (f *DefaultProcessorFactory) RegisterProcessor(processor Processor) {
 func (f *DefaultProcessorFactory) GetProcessor(typeName string) (Processor, error) {
 	processorType, exists := f.processorMap[typeName]
 	if !exists {
-		return nil, errors.NewProcessorTypeNotFoundError(typeName)
+		return nil, newProcessorTypeNotFoundError(typeName)
 	}
 
 	processorInstance := reflect.New(processorType).Interface().(Processor)

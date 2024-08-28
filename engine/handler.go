@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"github.com/go-streamline/core/definitions"
-	"github.com/go-streamline/core/errors"
 	"github.com/go-streamline/core/models"
 	"github.com/go-streamline/core/repo"
 	"github.com/go-streamline/core/utils"
@@ -11,6 +10,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"path"
 )
+
+var ErrCouldNotDeepCopyFlowObject = fmt.Errorf("could not deep copy flow object")
+var ErrFailedToGetNextProcessor = fmt.Errorf("failed to get next processor")
+var ErrFailedToSetProcessorConfig = fmt.Errorf("failed to set processor configuration")
 
 func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandler definitions.EngineFileHandler, sessionID uuid.UUID, attempts int, currentNode *models.Processor) error {
 
@@ -22,7 +25,7 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	err = processor.SetConfig(currentNode.Configuration)
 	if err != nil {
 		e.log.WithError(err).Error("failed to set processor configuration")
-		return fmt.Errorf("%w: %v", errors.FailedToSetProcessorConfig, err)
+		return fmt.Errorf("%w: %v", ErrFailedToSetProcessorConfig, err)
 	}
 
 	logEntry := repo.LogEntry{
@@ -40,13 +43,13 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	copiedFlow, err := DeepCopier.DeepCopyFlowObject(flow)
 	if err != nil {
 		e.log.WithError(err).Error("failed to copy flow object")
-		return fmt.Errorf("%w: %v", errors.CouldNotDeepCopyFlowObject, err)
+		return fmt.Errorf("%w: %v", ErrCouldNotDeepCopyFlowObject, err)
 	}
 
 	logger, err := e.createProcessorLogger(sessionID, currentNode)
 	if err != nil {
 		e.log.WithError(err).Errorf("failed to create logger for processor %s", currentNode.Name)
-		return errors.NewFailedToCreateLoggerError(currentNode.Name, err)
+		return newFailedToCreateLoggerError(currentNode.Name, err)
 	}
 	newFlow, err := processor.Execute(copiedFlow, fileHandler, logger)
 	if err != nil {
@@ -58,7 +61,7 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 			e.sessionUpdatesChannel <- definitions.SessionUpdate{
 				SessionID: sessionID,
 				Finished:  true,
-				Error:     errors.NewProcessorFailedError(currentNode.Name, err),
+				Error:     newProcessorFailedError(currentNode.Name, err),
 			}
 		}
 		return nil
@@ -67,7 +70,7 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	nextProcessorNode, err := e.flowManager.GetNextProcessor(currentNode.FlowID, currentNode.FlowOrder)
 	if err != nil {
 		logger.WithError(err).Error("failed to find the next processor")
-		return fmt.Errorf("%w: %v", errors.FailedToGetNextProcessor, err)
+		return fmt.Errorf("%w: %v", ErrFailedToGetNextProcessor, err)
 	}
 
 	e.scheduleNextProcessor(sessionID, fileHandler, newFlow, nextProcessorNode, 0)
