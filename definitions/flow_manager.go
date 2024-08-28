@@ -1,12 +1,9 @@
 package definitions
 
 import (
-	"fmt"
 	"github.com/go-streamline/core/models"
 	"github.com/google/uuid"
 )
-
-var ErrProcessorOrderExists = fmt.Errorf("there's already a processor with the same order in the flow")
 
 type FlowManager interface {
 	GetFirstProcessorForFlow(flowID uuid.UUID) (*models.Processor, error)
