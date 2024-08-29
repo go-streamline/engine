@@ -22,7 +22,6 @@ type LogEntry struct {
 	FlowObject    definitions.EngineFlowObject
 	RetryCount    int
 }
-
 type WriteAheadLogger interface {
 	WriteEntry(entry LogEntry)
 	ReadEntries() ([]LogEntry, error)
@@ -98,7 +97,6 @@ func (l *DefaultWriteAheadLogger) ReadEntries() ([]LogEntry, error) {
 	l.log.Debugf("finished reading WAL entries")
 
 	return entries, nil
-
 }
 
 func (l *DefaultWriteAheadLogger) WriteEntry(entry LogEntry) {

@@ -16,7 +16,6 @@ var ErrFailedToGetNextProcessor = fmt.Errorf("failed to get next processor")
 var ErrFailedToSetProcessorConfig = fmt.Errorf("failed to set processor configuration")
 
 func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandler definitions.EngineFileHandler, sessionID uuid.UUID, attempts int, currentNode *models.Processor) error {
-
 	processor, err := e.processorFactory.GetProcessor(currentNode.Type)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve processor %s: %w", currentNode.Type, err)
@@ -67,13 +66,15 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 		return nil
 	}
 
-	nextProcessorNode, err := e.flowManager.GetNextProcessor(currentNode.FlowID, currentNode.FlowOrder)
+	nextProcessorNodes, err := e.flowManager.GetNextProcessors(currentNode.FlowID, currentNode.ID)
 	if err != nil {
 		logger.WithError(err).Error("failed to find the next processor")
 		return fmt.Errorf("%w: %v", ErrFailedToGetNextProcessor, err)
 	}
 
-	e.scheduleNextProcessor(sessionID, fileHandler, newFlow, nextProcessorNode, 0)
+	for _, nextNode := range nextProcessorNodes {
+		e.scheduleNextProcessor(sessionID, fileHandler, newFlow, &nextNode, 0)
+	}
 	return nil
 }
 

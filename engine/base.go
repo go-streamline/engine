@@ -96,9 +96,9 @@ func (e *Engine) processIncomingObject(flowID uuid.UUID, i *definitions.EngineIn
 	}
 
 	fileHandler := filehandler.NewEngineFileHandler(input)
-	firstProcessor, err := e.flowManager.GetFirstProcessorForFlow(flowID)
+	firstProcessors, err := e.flowManager.GetFirstProcessorsForFlow(flowID)
 	if err != nil {
-		e.log.WithError(err).Error("failed to get first processor for flow")
+		e.log.WithError(err).Error("failed to get first processors for flow")
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: sessionID,
 			Finished:  true,
@@ -107,8 +107,16 @@ func (e *Engine) processIncomingObject(flowID uuid.UUID, i *definitions.EngineIn
 		return
 	}
 
-	if firstProcessor != nil {
-		e.scheduleNextProcessor(sessionID, fileHandler, flow, firstProcessor, 0)
+	if len(firstProcessors) > 0 {
+		for _, processor := range firstProcessors {
+			// Create a new file handler for each processor in the parallel path
+			processorFileHandler, err := fileHandler.GenerateNewFileHandler()
+			if err != nil {
+				e.log.WithError(err).Errorf("failed to create file handler for processor %s", processor.Name)
+				continue
+			}
+			e.scheduleNextProcessor(sessionID, processorFileHandler, flow, &processor, 0)
+		}
 	} else {
 		e.log.Warn("No processors available to handle the job")
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{

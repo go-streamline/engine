@@ -32,7 +32,7 @@ func (e *Engine) recover() error {
 			continue
 		}
 
-		e.scheduleNextProcessor(sessionID, fileHandler, flow, currentNode, lastEntry.RetryCount)
+		e.scheduleNextProcessor(sessionID, fileHandler, flow, *currentNode, lastEntry.RetryCount)
 	}
 
 	log.Info("go-streamline recovery process complete")
@@ -51,7 +51,6 @@ func (e *Engine) createSessionIDToLastEntryMap(entries []repo.LogEntry) map[uuid
 	sessionMap := make(map[uuid.UUID]repo.LogEntry)
 
 	for _, entry := range entries {
-		// if the session is marked as ended, remove it from the session map
 		if entry.ProcessorName == "__end__" {
 			delete(sessionMap, entry.SessionID)
 			continue
