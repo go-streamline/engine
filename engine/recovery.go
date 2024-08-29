@@ -32,7 +32,7 @@ func (e *Engine) recover() error {
 			continue
 		}
 
-		e.scheduleNextProcessor(sessionID, fileHandler, flow, *currentNode, lastEntry.RetryCount)
+		e.scheduleNextProcessor(sessionID, fileHandler, flow, currentNode, lastEntry.RetryCount)
 	}
 
 	log.Info("go-streamline recovery process complete")
