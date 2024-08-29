@@ -23,12 +23,12 @@ var ErrCouldNotDeepCopyConfig = fmt.Errorf("could not deep copy config")
 func New(config *config.Config, writeAheadLogger repo.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, flowManager definitions.FlowManager) (*Engine, error) {
 	err := utils.CreateDirsIfNotExist(config.Workdir)
 	if err != nil {
-		return nil, fmt.Errorf("%v: %w", ErrCouldNotCreateDirs, err)
+		return nil, fmt.Errorf("%w: %v", ErrCouldNotCreateDirs, err)
 	}
 
 	config, err = DeepCopier.DeepCopyConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("%v: %w", ErrCouldNotDeepCopyConfig, err)
+		return nil, fmt.Errorf("%w: %v", ErrCouldNotDeepCopyConfig, err)
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -55,7 +55,7 @@ func NewWithDefaults(config *config.Config, writeAheadLogger repo.WriteAheadLogg
 	}
 	flowManager, err := repo.NewDefaultFlowManager(db, config.Workdir)
 	if err != nil {
-		return nil, fmt.Errorf("%v: %w", ErrCouldNotCreateFlowManager, err)
+		return nil, fmt.Errorf("%w: %v", ErrCouldNotCreateFlowManager, err)
 	}
 	return New(config, writeAheadLogger, log, defaultFactory, flowManager)
 }
