@@ -24,7 +24,7 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	err = processor.SetConfig(currentNode.Configuration)
 	if err != nil {
 		e.log.WithError(err).Error("failed to set processor configuration")
-		return fmt.Errorf("%w: %v", ErrFailedToSetProcessorConfig, err)
+		return fmt.Errorf("%v: %w", ErrFailedToSetProcessorConfig, err)
 	}
 
 	logEntry := repo.LogEntry{
@@ -42,7 +42,7 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	copiedFlow, err := DeepCopier.DeepCopyFlowObject(flow)
 	if err != nil {
 		e.log.WithError(err).Error("failed to copy flow object")
-		return fmt.Errorf("%w: %v", ErrCouldNotDeepCopyFlowObject, err)
+		return fmt.Errorf("%v: %w", ErrCouldNotDeepCopyFlowObject, err)
 	}
 
 	logger, err := e.createProcessorLogger(sessionID, currentNode)
@@ -69,7 +69,7 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	nextProcessorNodes, err := e.flowManager.GetNextProcessors(currentNode.FlowID, currentNode.ID)
 	if err != nil {
 		logger.WithError(err).Error("failed to find the next processor")
-		return fmt.Errorf("%w: %v", ErrFailedToGetNextProcessor, err)
+		return fmt.Errorf("%v: %w", ErrFailedToGetNextProcessor, err)
 	}
 
 	for _, nextNode := range nextProcessorNodes {

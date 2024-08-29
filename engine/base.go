@@ -78,7 +78,7 @@ func (e *Engine) processIncomingObject(flowID uuid.UUID, i *definitions.EngineIn
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: sessionID,
 			Finished:  true,
-			Error:     fmt.Errorf("%w: %v", ErrFailedToCreateFile, err),
+			Error:     fmt.Errorf("%v: %w", ErrFailedToCreateFile, err),
 		}
 		return
 	}
@@ -90,7 +90,7 @@ func (e *Engine) processIncomingObject(flowID uuid.UUID, i *definitions.EngineIn
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: sessionID,
 			Finished:  true,
-			Error:     fmt.Errorf("%w: %v", ErrFailedToCopyJobToContentsFolder, err),
+			Error:     fmt.Errorf("%v: %w", ErrFailedToCopyJobToContentsFolder, err),
 		}
 		return
 	}
@@ -134,7 +134,7 @@ func (e *Engine) processJob(job processingJob) {
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: job.sessionID,
 			Finished:  true,
-			Error:     fmt.Errorf("%w: %v", ErrFailedToExecuteProcessors, err),
+			Error:     fmt.Errorf("%v: %w", ErrFailedToExecuteProcessors, err),
 		}
 	}
 }
