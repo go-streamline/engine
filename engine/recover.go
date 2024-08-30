@@ -1,0 +1,51 @@
+package engine
+
+import (
+	"github.com/go-streamline/core/filehandler"
+	"github.com/go-streamline/interfaces/definitions"
+	"github.com/google/uuid"
+)
+
+func (e *Engine) createSessionIDToLastEntryMap(entries []definitions.LogEntry) map[uuid.UUID]definitions.LogEntry {
+	sessionMap := make(map[uuid.UUID]definitions.LogEntry)
+
+	for _, entry := range entries {
+		if entry.ProcessorName == "__end__" {
+			delete(sessionMap, entry.SessionID)
+			continue
+		}
+		sessionMap[entry.SessionID] = entry
+	}
+	return sessionMap
+}
+
+func (e *Engine) recover() error {
+	e.log.Debugf("go-streamline is recovering from WriteAheadLogger")
+	entries, err := e.writeAheadLogger.ReadEntries()
+	if err != nil {
+		return err
+	}
+	e.log.Debugf("read %d entries from WriteAheadLogger", len(entries))
+
+	if entries == nil || len(entries) == 0 {
+		e.log.Info("no entries found in WriteAheadLogger; nothing to recover.")
+		return nil
+	}
+
+	sessionMap := e.createSessionIDToLastEntryMap(entries)
+
+	for sessionID, lastEntry := range sessionMap {
+		fileHandler := filehandler.NewEngineFileHandler(lastEntry.InputFile)
+		flow := &lastEntry.FlowObject
+		currentNode, err := e.flowManager.GetProcessorByID(lastEntry.FlowID, uuid.MustParse(lastEntry.ProcessorID))
+		if err != nil {
+			e.log.WithError(err).Warnf("Failed to find processor with ID %s during recovery", lastEntry.ProcessorID)
+			continue
+		}
+
+		e.scheduleNextProcessor(sessionID, fileHandler, flow, currentNode, lastEntry.RetryCount)
+	}
+
+	e.log.Info("go-streamline recovery process complete")
+	return nil
+}

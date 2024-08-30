@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/alitto/pond"
-	"github.com/go-streamline/core/flow"
+	"github.com/go-streamline/core/flow/persist"
 	"github.com/go-streamline/core/processors"
 	"github.com/go-streamline/engine/config"
 	"github.com/go-streamline/interfaces/definitions"
@@ -16,11 +16,31 @@ import (
 )
 
 var ErrCouldNotCreateFlowManager = fmt.Errorf("could not create flow manager")
-var ErrCouldNotCreateDirs = fmt.Errorf("could not create work directories")
+var ErrCouldNotCreateDirs = fmt.Errorf("failed to create work directories")
 var ErrRecoveryFailed = fmt.Errorf("failed to recover, if you don't want to recover, please delete the WAL file or set IgnoreRecoveryErrors to true")
 var ErrCouldNotDeepCopyConfig = fmt.Errorf("could not deep copy config")
 
-// New creates a new instance of Engine, may return the following errors: CouldNotCreateDirs, CouldNotDeepCopyConfig
+type Engine struct {
+	config                *config.Config
+	ctx                   context.Context
+	cancelFunc            context.CancelFunc
+	processingQueue       chan processingJob
+	sessionUpdatesChannel chan definitions.SessionUpdate
+	writeAheadLogger      definitions.WriteAheadLogger
+	workerPool            *pond.WorkerPool
+	log                   *logrus.Logger
+	processorFactory      definitions.ProcessorFactory
+	flowManager           definitions.FlowManager
+}
+
+type processingJob struct {
+	sessionID   uuid.UUID
+	attempts    int
+	flow        *definitions.EngineFlowObject
+	fileHandler definitions.EngineFileHandler
+	currentNode *definitions.SimpleProcessor
+}
+
 func New(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, flowManager definitions.FlowManager) (*Engine, error) {
 	err := utils.CreateDirsIfNotExist(config.Workdir)
 	if err != nil {
@@ -48,16 +68,12 @@ func New(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, l
 	}, nil
 }
 
-// NewWithDefaults creates Engine with as least effort as possible. Will create a default flow manager using db and return any error it may return wrapped in CouldNotCreateFlowManager.
 func NewWithDefaults(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, db *gorm.DB, supportedProcessorsList []definitions.Processor) (*Engine, error) {
 	defaultFactory := processors.NewDefaultProcessorFactory()
 	for _, processor := range supportedProcessorsList {
 		defaultFactory.RegisterProcessor(processor)
 	}
-	flowManager, err := flow.NewDefaultFlowManager(db, config.Workdir)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCouldNotCreateFlowManager, err)
-	}
+	flowManager := persist.NewDefaultFlowManager(db)
 	return New(config, writeAheadLogger, log, defaultFactory, flowManager)
 }
 
@@ -69,6 +85,7 @@ func (e *Engine) Submit(flowID uuid.UUID, metadata map[string]interface{}, reade
 	sessionID := uuid.New()
 	e.workerPool.Submit(func() {
 		e.processIncomingObject(flowID, &definitions.EngineIncomingObject{
+			FlowID:    flowID,
 			Metadata:  metadata,
 			Reader:    reader,
 			SessionID: sessionID,
@@ -83,7 +100,7 @@ func (e *Engine) SessionUpdates() <-chan definitions.SessionUpdate {
 
 func (e *Engine) Run() error {
 	err := e.recover()
-	if err != nil && !e.ignoreRecoveryErrors {
+	if err != nil {
 		return ErrRecoveryFailed
 	}
 	go func() {

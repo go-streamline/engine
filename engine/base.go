@@ -1,15 +1,10 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"github.com/alitto/pond"
 	"github.com/go-streamline/core/filehandler"
-	"github.com/go-streamline/engine/config"
 	"github.com/go-streamline/interfaces/definitions"
-	"github.com/go-streamline/interfaces/definitions/models"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"io"
 	"os"
 	"path"
@@ -19,29 +14,6 @@ var ErrFailedToCreateFile = fmt.Errorf("failed to create initial job file")
 var ErrFailedToCopyJobToContentsFolder = fmt.Errorf("failed to copy job to contents folder")
 var ErrFailedToExecuteProcessors = fmt.Errorf("failed to execute processors")
 var ErrNoProcessorsAvailable = fmt.Errorf("no processors available")
-
-type Engine struct {
-	config                *config.Config
-	ctx                   context.Context
-	cancelFunc            context.CancelFunc
-	processingQueue       chan processingJob
-	sessionUpdatesChannel chan definitions.SessionUpdate
-	contentsDir           string
-	writeAheadLogger      definitions.WriteAheadLogger
-	ignoreRecoveryErrors  bool
-	workerPool            *pond.WorkerPool
-	log                   *logrus.Logger
-	processorFactory      definitions.ProcessorFactory
-	flowManager           definitions.FlowManager
-}
-
-type processingJob struct {
-	sessionID   uuid.UUID
-	attempts    int
-	flow        *definitions.EngineFlowObject
-	fileHandler definitions.EngineFileHandler
-	currentNode *models.Processor
-}
 
 func (e *Engine) processJobs() {
 	for {
@@ -69,7 +41,7 @@ func (e *Engine) processIncomingObject(flowID uuid.UUID, i *definitions.EngineIn
 	e.log.Debugf("handling sessionID %s", sessionID)
 
 	flow := transformIncomingObjectToFlowObject(i)
-	input := path.Join(e.contentsDir, uuid.NewString())
+	input := path.Join(e.config.Workdir, uuid.NewString())
 
 	file, err := os.Create(input)
 	if err != nil {

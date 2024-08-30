@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"github.com/go-streamline/interfaces/definitions"
-	"github.com/go-streamline/interfaces/definitions/models"
 	"github.com/go-streamline/interfaces/utils"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -14,13 +13,13 @@ var ErrCouldNotDeepCopyFlowObject = fmt.Errorf("could not deep copy flow object"
 var ErrFailedToGetNextProcessor = fmt.Errorf("failed to get next processor")
 var ErrFailedToSetProcessorConfig = fmt.Errorf("failed to set processor configuration")
 
-func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandler definitions.EngineFileHandler, sessionID uuid.UUID, attempts int, currentNode *models.Processor) error {
+func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandler definitions.EngineFileHandler, sessionID uuid.UUID, attempts int, currentNode *definitions.SimpleProcessor) error {
 	processor, err := e.processorFactory.GetProcessor(currentNode.Type)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve processor %s: %w", currentNode.Type, err)
 	}
 
-	err = processor.SetConfig(currentNode.Configuration)
+	err = processor.SetConfig(currentNode.Config)
 	if err != nil {
 		e.log.WithError(err).Error("failed to set processor configuration")
 		return fmt.Errorf("%w: %v", ErrFailedToSetProcessorConfig, err)
@@ -77,7 +76,7 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	return nil
 }
 
-func (e *Engine) createProcessorLogger(sessionID uuid.UUID, processor *models.Processor) (*logrus.Logger, error) {
+func (e *Engine) createProcessorLogger(sessionID uuid.UUID, processor *definitions.SimpleProcessor) (*logrus.Logger, error) {
 	logDir := path.Join(e.config.Workdir,
 		"logs",
 		"flow="+processor.FlowID.String(),
@@ -106,7 +105,7 @@ func (e *Engine) scheduleNextProcessor(
 	sessionID uuid.UUID,
 	fileHandler definitions.EngineFileHandler,
 	flow *definitions.EngineFlowObject,
-	currentNode *models.Processor,
+	currentNode *definitions.SimpleProcessor,
 	attempts int,
 ) {
 	if currentNode == nil {
