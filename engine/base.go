@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/alitto/pond"
-	"github.com/go-streamline/core/config"
-	"github.com/go-streamline/core/definitions"
 	"github.com/go-streamline/core/filehandler"
-	"github.com/go-streamline/core/models"
-	"github.com/go-streamline/core/repo"
+	"github.com/go-streamline/engine/config"
+	"github.com/go-streamline/interfaces/definitions"
+	"github.com/go-streamline/interfaces/definitions/models"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"io"
@@ -28,7 +27,7 @@ type Engine struct {
 	processingQueue       chan processingJob
 	sessionUpdatesChannel chan definitions.SessionUpdate
 	contentsDir           string
-	writeAheadLogger      repo.WriteAheadLogger
+	writeAheadLogger      definitions.WriteAheadLogger
 	ignoreRecoveryErrors  bool
 	workerPool            *pond.WorkerPool
 	log                   *logrus.Logger

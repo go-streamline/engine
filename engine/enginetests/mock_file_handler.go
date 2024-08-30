@@ -1,8 +1,7 @@
 package enginetests
 
 import (
-	"github.com/go-streamline/core/definitions"
-	"github.com/go-streamline/core/repo"
+	"github.com/go-streamline/interfaces/definitions"
 	"github.com/stretchr/testify/mock"
 	"io"
 )
@@ -45,11 +44,11 @@ type MockWriteAheadLogger struct {
 	mock.Mock
 }
 
-func (m *MockWriteAheadLogger) WriteEntry(entry repo.LogEntry) {
+func (m *MockWriteAheadLogger) WriteEntry(entry definitions.LogEntry) {
 	m.Called(entry)
 }
 
-func (m *MockWriteAheadLogger) ReadEntries() ([]repo.LogEntry, error) {
+func (m *MockWriteAheadLogger) ReadEntries() ([]definitions.LogEntry, error) {
 	args := m.Called()
-	return args.Get(0).([]repo.LogEntry), args.Error(1)
+	return args.Get(0).([]definitions.LogEntry), args.Error(1)
 }

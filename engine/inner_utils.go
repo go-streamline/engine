@@ -1,9 +1,9 @@
 package engine
 
 import (
-	"github.com/go-streamline/core/config"
-	"github.com/go-streamline/core/definitions"
-	"github.com/go-streamline/core/utils"
+	"github.com/go-streamline/engine/config"
+	"github.com/go-streamline/interfaces/definitions"
+	"github.com/go-streamline/interfaces/utils"
 )
 
 // DeepCopyWrapper meant for mocks

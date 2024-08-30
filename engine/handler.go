@@ -2,10 +2,9 @@ package engine
 
 import (
 	"fmt"
-	"github.com/go-streamline/core/definitions"
-	"github.com/go-streamline/core/models"
-	"github.com/go-streamline/core/repo"
-	"github.com/go-streamline/core/utils"
+	"github.com/go-streamline/interfaces/definitions"
+	"github.com/go-streamline/interfaces/definitions/models"
+	"github.com/go-streamline/interfaces/utils"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"path"
@@ -27,7 +26,7 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 		return fmt.Errorf("%w: %v", ErrFailedToSetProcessorConfig, err)
 	}
 
-	logEntry := repo.LogEntry{
+	logEntry := definitions.LogEntry{
 		// log entry before execution
 		// create the logger for this processor
 		SessionID:     sessionID,

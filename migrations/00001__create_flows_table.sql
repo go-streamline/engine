@@ -9,3 +9,5 @@ CREATE TABLE flows (
 
 -- +goose Down
 DROP TABLE flows;
+
+-- todo: remove

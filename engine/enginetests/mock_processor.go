@@ -1,7 +1,7 @@
 package enginetests
 
 import (
-	"github.com/go-streamline/core/definitions"
+	"github.com/go-streamline/interfaces/definitions"
 	"github.com/stretchr/testify/mock"
 )
 

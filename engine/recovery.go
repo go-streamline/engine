@@ -2,8 +2,8 @@ package engine
 
 import (
 	"github.com/go-streamline/core/filehandler"
-	"github.com/go-streamline/core/models"
-	"github.com/go-streamline/core/repo"
+	"github.com/go-streamline/interfaces/definitions"
+	"github.com/go-streamline/interfaces/definitions/models"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )
@@ -47,8 +47,8 @@ func (e *Engine) getProcessorByID(flowID uuid.UUID, id uuid.UUID) (*models.Proce
 	return processor, nil
 }
 
-func (e *Engine) createSessionIDToLastEntryMap(entries []repo.LogEntry) map[uuid.UUID]repo.LogEntry {
-	sessionMap := make(map[uuid.UUID]repo.LogEntry)
+func (e *Engine) createSessionIDToLastEntryMap(entries []definitions.LogEntry) map[uuid.UUID]definitions.LogEntry {
+	sessionMap := make(map[uuid.UUID]definitions.LogEntry)
 
 	for _, entry := range entries {
 		if entry.ProcessorName == "__end__" {

@@ -1,16 +1,9 @@
 package config
 
 import (
-	"github.com/go-streamline/core/definitions"
+	"github.com/go-streamline/interfaces/definitions"
 	"time"
 )
-
-type WriteAheadLogging struct {
-	MaxSizeMB  int
-	MaxBackups int
-	MaxAgeDays int
-	Enabled    bool
-}
 
 type Config struct {
 	Workdir          string            `json:"workdir"`

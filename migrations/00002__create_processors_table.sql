@@ -20,3 +20,6 @@ CREATE INDEX idx_processors_parent_processor_id ON processors (parent_processor_
 
 -- +goose Down
 DROP TABLE processors;
+
+
+-- todo: remove
