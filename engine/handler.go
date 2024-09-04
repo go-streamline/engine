@@ -26,8 +26,6 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	}
 
 	logEntry := definitions.LogEntry{
-		// log entry before execution
-		// create the logger for this processor
 		SessionID:     sessionID,
 		ProcessorName: currentNode.Name,
 		ProcessorID:   currentNode.ID.String(),
@@ -48,6 +46,7 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 		e.log.WithError(err).Errorf("failed to create logger for processor %s", currentNode.Name)
 		return newFailedToCreateLoggerError(currentNode.Name, err)
 	}
+
 	newFlow, err := processor.Execute(copiedFlow, fileHandler, logger)
 	if err != nil {
 		if attempts < currentNode.MaxRetries {

@@ -2,17 +2,17 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/alitto/pond"
 	"github.com/go-streamline/core/flow/persist"
-	"github.com/go-streamline/core/processors"
 	"github.com/go-streamline/engine/config"
 	"github.com/go-streamline/interfaces/definitions"
 	"github.com/go-streamline/interfaces/utils"
 	"github.com/google/uuid"
+	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
-	"io"
 )
 
 var ErrCouldNotCreateFlowManager = fmt.Errorf("could not create flow manager")
@@ -31,6 +31,9 @@ type Engine struct {
 	log                   *logrus.Logger
 	processorFactory      definitions.ProcessorFactory
 	flowManager           definitions.FlowManager
+	activeFlows           map[uuid.UUID]*definitions.Flow
+	triggerProcessors     map[uuid.UUID]definitions.TriggerProcessor
+	scheduler             *cron.Cron
 }
 
 type processingJob struct {
@@ -52,12 +55,8 @@ func New(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, l
 		return nil, fmt.Errorf("%w: %v", ErrCouldNotDeepCopyConfig, err)
 	}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
-
 	return &Engine{
 		config:                config,
-		ctx:                   ctx,
-		cancelFunc:            cancelFunc,
 		processingQueue:       make(chan processingJob),
 		sessionUpdatesChannel: make(chan definitions.SessionUpdate),
 		writeAheadLogger:      writeAheadLogger,
@@ -65,33 +64,34 @@ func New(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, l
 		log:                   log,
 		processorFactory:      processorFactory,
 		flowManager:           flowManager,
+		activeFlows:           make(map[uuid.UUID]*definitions.Flow),
+		triggerProcessors:     make(map[uuid.UUID]definitions.TriggerProcessor),
+		scheduler:             cron.New(cron.WithSeconds()),
 	}, nil
 }
 
-func NewWithDefaults(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, db *gorm.DB, supportedProcessorsList []definitions.Processor) (*Engine, error) {
-	defaultFactory := processors.NewDefaultProcessorFactory()
-	for _, processor := range supportedProcessorsList {
-		defaultFactory.RegisterProcessor(processor)
+func NewWithDefaults(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, db *gorm.DB, processorFactory definitions.ProcessorFactory) (*Engine, error) {
+	flowManager, err := persist.NewDBFlowManager(db)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrCouldNotCreateFlowManager, err)
 	}
-	flowManager := persist.NewDefaultFlowManager(db)
-	return New(config, writeAheadLogger, log, defaultFactory, flowManager)
+	return New(config, writeAheadLogger, log, processorFactory, flowManager)
 }
 
-func (e *Engine) Stop() {
+func (e *Engine) Close() error {
 	e.cancelFunc()
-}
-
-func (e *Engine) Submit(flowID uuid.UUID, metadata map[string]interface{}, reader io.Reader) uuid.UUID {
-	sessionID := uuid.New()
-	e.workerPool.Submit(func() {
-		e.processIncomingObject(flowID, &definitions.EngineIncomingObject{
-			FlowID:    flowID,
-			Metadata:  metadata,
-			Reader:    reader,
-			SessionID: sessionID,
-		})
-	})
-	return sessionID
+	e.workerPool.StopAndWait()
+	var errs []error
+	for _, triggerProcessor := range e.triggerProcessors {
+		err := triggerProcessor.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
 func (e *Engine) SessionUpdates() <-chan definitions.SessionUpdate {
@@ -99,10 +99,12 @@ func (e *Engine) SessionUpdates() <-chan definitions.SessionUpdate {
 }
 
 func (e *Engine) Run() error {
+	e.ctx, e.cancelFunc = context.WithCancel(context.Background())
 	err := e.recover()
 	if err != nil {
 		return ErrRecoveryFailed
 	}
+	go e.monitorFlows()
 	go func() {
 		e.processJobs()
 	}()
