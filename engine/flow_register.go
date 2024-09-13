@@ -79,7 +79,7 @@ func (e *Engine) activateFlow(flow *definitions.Flow) error {
 	// Initialize processors if enabled
 	for _, processor := range flow.Processors {
 		if processor.Enabled {
-			impl, err := e.processorFactory.GetProcessor(processor.Type)
+			impl, err := e.processorFactory.GetProcessor(processor.ID, processor.Type)
 			if err != nil {
 				e.log.WithError(err).Errorf("failed to get processor %s for flow %s", processor.Name, flow.ID)
 				continue
@@ -90,22 +90,34 @@ func (e *Engine) activateFlow(flow *definitions.Flow) error {
 
 	for _, triggerProcessorDef := range triggerProcessors {
 		if triggerProcessorDef.Enabled {
-			triggerProcessor, err := e.processorFactory.GetTriggerProcessor(triggerProcessorDef.Type)
+			triggerProcessor, err := e.processorFactory.GetTriggerProcessor(triggerProcessorDef.ID, triggerProcessorDef.Type)
 			if err != nil {
 				e.log.WithError(err).Errorf("failed to get trigger processor %s for flow %s", triggerProcessorDef.Name, flow.ID)
 				continue
 			}
-			e.triggerProcessors[triggerProcessorDef.ID] = triggerProcessorInfo{
+			tpInfo := triggerProcessorInfo{
 				Processor:  triggerProcessor,
 				FlowID:     flow.ID,
 				Definition: triggerProcessorDef,
 			}
+			e.triggerProcessors[triggerProcessorDef.ID] = tpInfo
 			err = triggerProcessor.SetConfig(triggerProcessorDef.Config)
 			if err != nil {
 				e.log.WithError(err).Errorf("failed to set configuration for trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
 				continue
 			}
-			go e.runTriggerProcessor(triggerProcessor, triggerProcessorDef, flow)
+			if triggerProcessorDef.ScheduleType == definitions.EventDriven {
+				go e.runTriggerProcessor(triggerProcessor, triggerProcessorDef, flow)
+			} else {
+				scheduleID, err := e.scheduler.AddFunc(triggerProcessorDef.CronExpr, func() {
+					e.runTriggerProcessor(triggerProcessor, triggerProcessorDef, flow)
+				})
+				if err != nil {
+					e.log.WithError(err).Errorf("failed to schedule cron for trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
+					continue
+				}
+				tpInfo.CronEntryID = scheduleID
+			}
 		}
 	}
 
@@ -117,6 +129,10 @@ func (e *Engine) deactivateFlow(flowID uuid.UUID) {
 		// deactivate trigger processors
 		for _, triggerProcessorDef := range flow.TriggerProcessors {
 			if tp, ok := e.triggerProcessors[triggerProcessorDef.ID]; ok {
+				if tp.CronEntryID != 0 {
+					e.scheduler.Remove(tp.CronEntryID)
+				}
+
 				err := tp.Processor.Close()
 				if err != nil {
 					e.log.WithError(err).Errorf("failed to close trigger processor %s[id=%s] in flow %s",

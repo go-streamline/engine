@@ -27,7 +27,7 @@ type Engine struct {
 	cancelFunc            context.CancelFunc
 	sessionUpdatesChannel chan definitions.SessionUpdate
 	writeAheadLogger      definitions.WriteAheadLogger
-	workerPool            *pond.WorkerPool
+	workerPool            workerPool
 	log                   *logrus.Logger
 	processorFactory      definitions.ProcessorFactory
 	flowManager           definitions.FlowManager
@@ -35,7 +35,7 @@ type Engine struct {
 	activeFlows           map[uuid.UUID]*definitions.Flow
 	enabledProcessors     map[uuid.UUID]definitions.Processor
 	triggerProcessors     map[uuid.UUID]triggerProcessorInfo
-	scheduler             *cron.Cron
+	scheduler             scheduler
 }
 
 func New(config *configuration.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, flowManager definitions.FlowManager) (*Engine, error) {
@@ -75,6 +75,7 @@ func NewWithDefaults(config *configuration.Config, writeAheadLogger definitions.
 
 func (e *Engine) Close() error {
 	e.cancelFunc()
+	e.scheduler.Stop()
 	e.workerPool.StopAndWait()
 	var errs []error
 	for _, triggerProcessor := range e.triggerProcessors {
@@ -105,6 +106,7 @@ func (e *Engine) Run() error {
 	if err != nil {
 		return ErrRecoveryFailed
 	}
+	e.scheduler.Start()
 	go e.monitorFlows()
 	return nil
 }
