@@ -2,48 +2,40 @@ package engine
 
 import (
 	"github.com/go-streamline/core/filehandler"
-	"github.com/go-streamline/interfaces/definitions"
 	"github.com/google/uuid"
 )
 
-func (e *Engine) createSessionIDToLastEntryMap(entries []definitions.LogEntry) map[uuid.UUID]definitions.LogEntry {
-	sessionMap := make(map[uuid.UUID]definitions.LogEntry)
-
-	for _, entry := range entries {
-		if entry.ProcessorName == "__end__" {
-			delete(sessionMap, entry.SessionID)
-			continue
-		}
-		sessionMap[entry.SessionID] = entry
-	}
-	return sessionMap
-}
-
 func (e *Engine) recover() error {
 	e.log.Debugf("go-streamline is recovering from WriteAheadLogger")
-	entries, err := e.writeAheadLogger.ReadEntries()
+	// read only the last active (incomplete) entries
+	lastEntries, err := e.writeAheadLogger.ReadLastEntries()
 	if err != nil {
 		return err
 	}
-	e.log.Debugf("read %d entries from WriteAheadLogger", len(entries))
+	e.log.Debugf("read %d last active entries from WriteAheadLogger", len(lastEntries))
 
-	if entries == nil || len(entries) == 0 {
-		e.log.Info("no entries found in WriteAheadLogger; nothing to recover.")
+	if len(lastEntries) == 0 {
+		e.log.Info("no active entries found in WriteAheadLogger; nothing to recover.")
 		return nil
 	}
 
-	sessionMap := e.createSessionIDToLastEntryMap(entries)
-
-	for sessionID, lastEntry := range sessionMap {
+	for _, lastEntry := range lastEntries {
+		// create the file handler for the last known input file
 		fileHandler := filehandler.NewEngineFileHandler(lastEntry.InputFile)
-		flow := &lastEntry.FlowObject
-		currentNode, err := e.flowManager.GetProcessorByID(lastEntry.FlowID, uuid.MustParse(lastEntry.ProcessorID))
+
+		// retrieve the processor for the flow and session being recovered
+		flowObject := lastEntry.FlowObject
+		processor, err := e.flowManager.GetProcessorByID(lastEntry.FlowID, uuid.MustParse(lastEntry.ProcessorID))
 		if err != nil {
-			e.log.WithError(err).Warnf("Failed to find processor with ID %s during recovery", lastEntry.ProcessorID)
+			e.log.WithError(err).Warnf("failed to find processor with ID %s during recovery", lastEntry.ProcessorID)
 			continue
 		}
 
-		e.scheduleNextProcessor(sessionID, fileHandler, flow, currentNode, lastEntry.RetryCount)
+		// restore the state of the branch tracker to resume from where we left off
+		e.branchTracker.RestoreState(lastEntry.SessionID, lastEntry.CompletedProcessorIDs)
+
+		// re-schedule the processor using the flow object and file handler
+		e.scheduleNextProcessor(lastEntry.SessionID, fileHandler, &flowObject, processor, lastEntry.RetryCount)
 	}
 
 	e.log.Info("go-streamline recovery process complete")

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/alitto/pond"
 	"github.com/go-streamline/core/flow/persist"
+	"github.com/go-streamline/core/track"
 	"github.com/go-streamline/engine/config"
 	"github.com/go-streamline/interfaces/definitions"
 	"github.com/go-streamline/interfaces/utils"
@@ -24,24 +25,18 @@ type Engine struct {
 	config                *config.Config
 	ctx                   context.Context
 	cancelFunc            context.CancelFunc
-	processingQueue       chan processingJob
 	sessionUpdatesChannel chan definitions.SessionUpdate
 	writeAheadLogger      definitions.WriteAheadLogger
 	workerPool            *pond.WorkerPool
 	log                   *logrus.Logger
 	processorFactory      definitions.ProcessorFactory
 	flowManager           definitions.FlowManager
+	branchTracker         definitions.BranchTracker // Added branch tracker
 	activeFlows           map[uuid.UUID]*definitions.Flow
+	enabledProcessors     map[uuid.UUID]definitions.Processor
 	triggerProcessors     map[uuid.UUID]definitions.TriggerProcessor
 	scheduler             *cron.Cron
-}
-
-type processingJob struct {
-	sessionID   uuid.UUID
-	attempts    int
-	flow        *definitions.EngineFlowObject
-	fileHandler definitions.EngineFileHandler
-	currentNode *definitions.SimpleProcessor
+	triggerProcessorDefs  map[uuid.UUID]*definitions.SimpleTriggerProcessor // Store trigger processor definitions by ID
 }
 
 func New(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, flowManager definitions.FlowManager) (*Engine, error) {
@@ -57,16 +52,18 @@ func New(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, l
 
 	return &Engine{
 		config:                config,
-		processingQueue:       make(chan processingJob),
 		sessionUpdatesChannel: make(chan definitions.SessionUpdate),
 		writeAheadLogger:      writeAheadLogger,
 		workerPool:            pond.New(config.MaxWorkers, config.MaxWorkers),
 		log:                   log,
 		processorFactory:      processorFactory,
 		flowManager:           flowManager,
+		branchTracker:         track.NewBranchTracker(),
 		activeFlows:           make(map[uuid.UUID]*definitions.Flow),
+		enabledProcessors:     make(map[uuid.UUID]definitions.Processor),
 		triggerProcessors:     make(map[uuid.UUID]definitions.TriggerProcessor),
 		scheduler:             cron.New(cron.WithSeconds()),
+		triggerProcessorDefs:  make(map[uuid.UUID]*definitions.SimpleTriggerProcessor),
 	}, nil
 }
 
@@ -105,8 +102,5 @@ func (e *Engine) Run() error {
 		return ErrRecoveryFailed
 	}
 	go e.monitorFlows()
-	go func() {
-		e.processJobs()
-	}()
 	return nil
 }

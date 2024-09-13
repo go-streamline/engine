@@ -11,25 +11,24 @@ func (e *Engine) monitorFlows() {
 	defer ticker.Stop()
 
 	var lastQueryTime time.Time
-	paginationRequest := &definitions.PaginationRequest{
-		Page:    1,
-		PerPage: e.config.FlowBatchSize,
-	}
 
 	for {
 		select {
 		case <-e.ctx.Done():
 			e.log.Infof("stopping flow monitoring")
+			e.workerPool.Stop()
 			return
 		case <-ticker.C:
-			lastQueryTime = e.monitorAndTrackFlows(paginationRequest, lastQueryTime)
+			lastQueryTime = e.monitorAndTrackFlows(lastQueryTime)
 		}
 	}
 }
 
-// monitorAndTrackFlows fetches flows from the flow manager, stores them in memory,
-// and activates or deactivates flows accordingly.
-func (e *Engine) monitorAndTrackFlows(paginationRequest *definitions.PaginationRequest, lastQueryTime time.Time) time.Time {
+func (e *Engine) monitorAndTrackFlows(lastQueryTime time.Time) time.Time {
+	paginationRequest := &definitions.PaginationRequest{
+		Page:    1,
+		PerPage: e.config.FlowBatchSize,
+	}
 	totalProcessed := 0
 	timeNow := time.Now()
 
@@ -65,30 +64,46 @@ func (e *Engine) monitorAndTrackFlows(paginationRequest *definitions.PaginationR
 }
 
 func (e *Engine) activateFlow(flow *definitions.Flow) error {
+	// Activate and cache flow if not already active
 	if _, ok := e.activeFlows[flow.ID]; ok {
 		return nil
 	}
 	e.activeFlows[flow.ID] = flow
+
 	triggerProcessors, err := e.flowManager.GetTriggerProcessorsForFlow(flow.ID)
 	if err != nil {
 		e.log.WithError(err).Errorf("failed to get trigger processors for flow %s", flow.ID)
 		return err
 	}
 
-	for _, triggerProcessorDef := range triggerProcessors {
-		triggerProcessor, err := e.processorFactory.GetTriggerProcessor(triggerProcessorDef.Type)
-		if err != nil {
-			e.log.WithError(err).Errorf("failed to get processor %s for flow %s", triggerProcessorDef.Type, flow.ID)
-			return err
+	// Initialize processors if enabled
+	for _, processor := range flow.Processors {
+		if processor.Enabled {
+			impl, err := e.processorFactory.GetProcessor(processor.Type)
+			if err != nil {
+				e.log.WithError(err).Errorf("failed to get processor %s for flow %s", processor.Name, flow.ID)
+				continue
+			}
+			e.enabledProcessors[processor.ID] = impl
 		}
+	}
 
-		e.triggerProcessors[triggerProcessorDef.ID] = triggerProcessor
-		err = triggerProcessor.SetConfig(triggerProcessorDef.Config)
-		if err != nil {
-			e.log.WithError(err).Errorf("failed to set configuration for trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
-			return err
+	for _, triggerProcessorDef := range triggerProcessors {
+		if triggerProcessorDef.Enabled {
+			triggerProcessor, err := e.processorFactory.GetTriggerProcessor(triggerProcessorDef.Type)
+			if err != nil {
+				e.log.WithError(err).Errorf("failed to get trigger processor %s for flow %s", triggerProcessorDef.Name, flow.ID)
+				continue
+			}
+			e.triggerProcessors[triggerProcessorDef.ID] = triggerProcessor
+			e.triggerProcessorDefs[triggerProcessorDef.ID] = triggerProcessorDef
+			err = triggerProcessor.SetConfig(triggerProcessorDef.Config)
+			if err != nil {
+				e.log.WithError(err).Errorf("failed to set configuration for trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
+				continue
+			}
+			go e.runTriggerProcessor(triggerProcessor, triggerProcessorDef, flow)
 		}
-		go e.runTriggerProcessor(triggerProcessor, triggerProcessorDef, flow)
 	}
 
 	return nil
@@ -96,12 +111,24 @@ func (e *Engine) activateFlow(flow *definitions.Flow) error {
 
 func (e *Engine) deactivateFlow(flowID uuid.UUID) {
 	if flow, ok := e.activeFlows[flowID]; ok {
+		// deactivate trigger processors
 		for _, triggerProcessorDef := range flow.TriggerProcessors {
 			if tp, ok := e.triggerProcessors[triggerProcessorDef.ID]; ok {
 				tp.Close()
 				delete(e.triggerProcessors, triggerProcessorDef.ID)
 			}
+			// set the triggerProcessorDef.Enabled to false
+			if def, ok := e.triggerProcessorDefs[triggerProcessorDef.ID]; ok {
+				def.Enabled = false
+			}
+			delete(e.triggerProcessorDefs, triggerProcessorDef.ID)
 		}
+
+		// deactivate regular processors
+		for _, processor := range flow.Processors {
+			delete(e.enabledProcessors, processor.ID)
+		}
+
 		delete(e.activeFlows, flowID)
 	}
 }
