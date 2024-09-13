@@ -4,10 +4,10 @@ go 1.22
 
 require (
 	github.com/alitto/pond v1.9.2
-	github.com/go-streamline/core v0.0.13-d0.0.25
+	github.com/go-streamline/core v0.0.15-d0.0.27
 	github.com/go-streamline/interfaces v0.0.27
 	github.com/google/uuid v1.6.0
-	github.com/robfig/cron/v3 v3.0.0
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	gorm.io/gorm v1.25.12
