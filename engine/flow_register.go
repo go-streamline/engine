@@ -95,8 +95,11 @@ func (e *Engine) activateFlow(flow *definitions.Flow) error {
 				e.log.WithError(err).Errorf("failed to get trigger processor %s for flow %s", triggerProcessorDef.Name, flow.ID)
 				continue
 			}
-			e.triggerProcessors[triggerProcessorDef.ID] = triggerProcessor
-			e.triggerProcessorDefs[triggerProcessorDef.ID] = triggerProcessorDef
+			e.triggerProcessors[triggerProcessorDef.ID] = triggerProcessorInfo{
+				Processor:  triggerProcessor,
+				FlowID:     flow.ID,
+				Definition: triggerProcessorDef,
+			}
 			err = triggerProcessor.SetConfig(triggerProcessorDef.Config)
 			if err != nil {
 				e.log.WithError(err).Errorf("failed to set configuration for trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
@@ -114,14 +117,10 @@ func (e *Engine) deactivateFlow(flowID uuid.UUID) {
 		// deactivate trigger processors
 		for _, triggerProcessorDef := range flow.TriggerProcessors {
 			if tp, ok := e.triggerProcessors[triggerProcessorDef.ID]; ok {
-				tp.Close()
+				tp.Processor.Close()
+				tp.Definition.Enabled = false
 				delete(e.triggerProcessors, triggerProcessorDef.ID)
 			}
-			// set the triggerProcessorDef.Enabled to false
-			if def, ok := e.triggerProcessorDefs[triggerProcessorDef.ID]; ok {
-				def.Enabled = false
-			}
-			delete(e.triggerProcessorDefs, triggerProcessorDef.ID)
 		}
 
 		// deactivate regular processors

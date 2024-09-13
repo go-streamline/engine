@@ -18,6 +18,12 @@ type processingJob struct {
 	currentNode *definitions.SimpleProcessor
 }
 
+type triggerProcessorInfo struct {
+	Processor  definitions.TriggerProcessor
+	FlowID     uuid.UUID
+	Definition *definitions.SimpleTriggerProcessor
+}
+
 func (e *Engine) processJob(job processingJob) {
 	err := e.executeProcessor(job.flow, job.fileHandler, job.sessionID, job.attempts, job.currentNode)
 	if err != nil {

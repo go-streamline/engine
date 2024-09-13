@@ -34,9 +34,8 @@ type Engine struct {
 	branchTracker         definitions.BranchTracker // Added branch tracker
 	activeFlows           map[uuid.UUID]*definitions.Flow
 	enabledProcessors     map[uuid.UUID]definitions.Processor
-	triggerProcessors     map[uuid.UUID]definitions.TriggerProcessor
+	triggerProcessors     map[uuid.UUID]triggerProcessorInfo
 	scheduler             *cron.Cron
-	triggerProcessorDefs  map[uuid.UUID]*definitions.SimpleTriggerProcessor // Store trigger processor definitions by ID
 }
 
 func New(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, flowManager definitions.FlowManager) (*Engine, error) {
@@ -61,9 +60,8 @@ func New(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, l
 		branchTracker:         track.NewBranchTracker(),
 		activeFlows:           make(map[uuid.UUID]*definitions.Flow),
 		enabledProcessors:     make(map[uuid.UUID]definitions.Processor),
-		triggerProcessors:     make(map[uuid.UUID]definitions.TriggerProcessor),
+		triggerProcessors:     make(map[uuid.UUID]triggerProcessorInfo),
 		scheduler:             cron.New(cron.WithSeconds()),
-		triggerProcessorDefs:  make(map[uuid.UUID]*definitions.SimpleTriggerProcessor),
 	}, nil
 }
 
@@ -80,7 +78,7 @@ func (e *Engine) Close() error {
 	e.workerPool.StopAndWait()
 	var errs []error
 	for _, triggerProcessor := range e.triggerProcessors {
-		err := triggerProcessor.Close()
+		err := triggerProcessor.Processor.Close()
 		if err != nil {
 			errs = append(errs, err)
 		}
