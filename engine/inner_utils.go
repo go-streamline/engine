@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"github.com/go-streamline/engine/config"
+	"github.com/go-streamline/engine/configuration"
 	"github.com/go-streamline/interfaces/definitions"
 	"github.com/go-streamline/interfaces/utils"
 )
@@ -13,7 +13,7 @@ func (d DeepCopyWrapper) DeepCopyFlowObject(input *definitions.EngineFlowObject)
 	return utils.DeepCopy(input)
 }
 
-func (d DeepCopyWrapper) DeepCopyConfig(input *config.Config) (*config.Config, error) {
+func (d DeepCopyWrapper) DeepCopyConfig(input *configuration.Config) (*configuration.Config, error) {
 	return utils.DeepCopy(input)
 }
 

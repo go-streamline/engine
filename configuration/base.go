@@ -1,4 +1,4 @@
-package config
+package configuration
 
 type Config struct {
 	Workdir           string `json:"workdir"`

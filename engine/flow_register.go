@@ -117,7 +117,11 @@ func (e *Engine) deactivateFlow(flowID uuid.UUID) {
 		// deactivate trigger processors
 		for _, triggerProcessorDef := range flow.TriggerProcessors {
 			if tp, ok := e.triggerProcessors[triggerProcessorDef.ID]; ok {
-				tp.Processor.Close()
+				err := tp.Processor.Close()
+				if err != nil {
+					e.log.WithError(err).Errorf("failed to close trigger processor %s[id=%s] in flow %s",
+						tp.Processor.Name(), triggerProcessorDef.ID, flowID)
+				}
 				tp.Definition.Enabled = false
 				delete(e.triggerProcessors, triggerProcessorDef.ID)
 			}
@@ -125,6 +129,14 @@ func (e *Engine) deactivateFlow(flowID uuid.UUID) {
 
 		// deactivate regular processors
 		for _, processor := range flow.Processors {
+			if processor.Enabled {
+				err := e.enabledProcessors[processor.ID].Close()
+				if err != nil {
+					e.log.WithError(err).Errorf("failed to close processor %s[id=%s] in flow %s", processor.Name,
+						processor.ID, flowID)
+				}
+				delete(e.enabledProcessors, processor.ID)
+			}
 			delete(e.enabledProcessors, processor.ID)
 		}
 

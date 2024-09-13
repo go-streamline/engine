@@ -7,7 +7,7 @@ import (
 	"github.com/alitto/pond"
 	"github.com/go-streamline/core/flow/persist"
 	"github.com/go-streamline/core/track"
-	"github.com/go-streamline/engine/config"
+	"github.com/go-streamline/engine/configuration"
 	"github.com/go-streamline/interfaces/definitions"
 	"github.com/go-streamline/interfaces/utils"
 	"github.com/google/uuid"
@@ -22,7 +22,7 @@ var ErrRecoveryFailed = fmt.Errorf("failed to recover, if you don't want to reco
 var ErrCouldNotDeepCopyConfig = fmt.Errorf("could not deep copy config")
 
 type Engine struct {
-	config                *config.Config
+	config                *configuration.Config
 	ctx                   context.Context
 	cancelFunc            context.CancelFunc
 	sessionUpdatesChannel chan definitions.SessionUpdate
@@ -38,7 +38,7 @@ type Engine struct {
 	scheduler             *cron.Cron
 }
 
-func New(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, flowManager definitions.FlowManager) (*Engine, error) {
+func New(config *configuration.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, flowManager definitions.FlowManager) (*Engine, error) {
 	err := utils.CreateDirsIfNotExist(config.Workdir)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCouldNotCreateDirs, err)
@@ -65,7 +65,7 @@ func New(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, l
 	}, nil
 }
 
-func NewWithDefaults(config *config.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, db *gorm.DB, processorFactory definitions.ProcessorFactory) (*Engine, error) {
+func NewWithDefaults(config *configuration.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, db *gorm.DB, processorFactory definitions.ProcessorFactory) (*Engine, error) {
 	flowManager, err := persist.NewDBFlowManager(db)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCouldNotCreateFlowManager, err)
@@ -79,6 +79,12 @@ func (e *Engine) Close() error {
 	var errs []error
 	for _, triggerProcessor := range e.triggerProcessors {
 		err := triggerProcessor.Processor.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	for _, processor := range e.enabledProcessors {
+		err := processor.Close()
 		if err != nil {
 			errs = append(errs, err)
 		}
