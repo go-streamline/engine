@@ -1,5 +1,5 @@
 # Streamline Engine
-> **Note**: This README is AI generated, so it might be incomplete or inaccurate. Please don't hesitate to open issues or ask for help.
+> **Note**: This README is mostly AI generated, so it might be incomplete or inaccurate. Please don't hesitate to open issues or ask for help.
 
 The **Streamline Engine** is a flexible and extensible workflow engine designed to execute complex flows with minimal code. It aims to provide a balance between ease of use and the flexibility to customize and extend functionalities through custom processors.
 
@@ -50,12 +50,11 @@ The plan is to develop a separate repository containing default processors and i
 To install the Streamline Engine, you can clone the repository and build it locally:
 
 ```bash
-git clone https://github.com/yourusername/streamline-engine.git
-cd streamline-engine
+git clone https://github.com/go-streamline/engine.git
+cd engine
 go build
 ```
 
-> **Note:** Replace `yourusername` with the actual GitHub username when the repository is available.
 
 ### Basic Usage
 
