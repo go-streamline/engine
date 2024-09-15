@@ -109,6 +109,10 @@ type MyCustomProcessor struct {
     // Implement necessary fields
 }
 
+func (p *MyCustomProcessor) Name() string {
+    return "MyCustomProcessor"
+}
+
 func (p *MyCustomProcessor) Execute(flow *definitions.EngineFlowObject, fileHandler definitions.EngineFileHandler, logger *logrus.Logger) (*definitions.EngineFlowObject, error) {
     // Implement your processor logic
 }
@@ -131,7 +135,7 @@ type MyProcessorFactory struct {
     defaultFactory definitions.ProcessorFactory
 }
 
-func (f *MyProcessorFactory) GetProcessor(id uuid.UUID, processorType string) (definitions.Processor, error) {
+func (f *MyProcessorFactory) GetProcessor(processorType string) (definitions.Processor, error) {
     // Check if processorType matches your custom processor
     if processorType == "MyCustomProcessor" {
         return &MyCustomProcessor{}, nil
