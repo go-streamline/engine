@@ -81,7 +81,7 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 	sessionID := uuid.New()
 
 	// create a new file handler for the trigger processor's output
-	outputFile := path.Join(e.config.Workdir, "contents", uuid.New().String())
+	outputFile := path.Join(e.config.Workdir, "contents", uuid.NewString())
 	fileHandler := filehandler.NewWriteOnlyEngineFileHandler(outputFile)
 
 	// create the flow object that the processor will use
@@ -90,7 +90,7 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 	}
 
 	// execute the trigger processor
-	_, err := tp.Execute(flowObject, fileHandler, e.log)
+	flowObject, err := tp.Execute(flowObject, fileHandler, e.log)
 	if err != nil {
 		e.log.WithError(err).Errorf("failed to execute trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
 		return
