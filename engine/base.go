@@ -44,10 +44,19 @@ func (e *Engine) processJob(job processingJob) {
 	err := e.executeProcessor(job.flow, job.fileHandler, job.sessionID, job.attempts, job.currentNode)
 	if err != nil {
 		e.log.WithError(err).Errorf("failed to execute processor for session %s", job.sessionID)
-		e.sessionUpdatesChannel <- definitions.SessionUpdate{
-			SessionID: job.sessionID,
-			Finished:  true,
-			Error:     fmt.Errorf("%w: %v", ErrFailedToExecuteProcessors, err),
+		if job.attempts < e.config.MaxAttempts {
+			e.log.Infof("Retrying job %s for session %s (attempt %d/%d)", job.ID, job.sessionID, job.attempts, e.Config.MaxAttempts)
+			go func() {
+				time.Sleep(e.Config.BackOff * time.Duration(math.Pow(2, float64(job.attempts))))
+				job.attempts += 1
+				e.processJob(job) // Retry the job
+			}()
+		} else {
+				e.sessionUpdatesChannel <- definitions.SessionUpdate{
+					SessionID: job.sessionID,
+					Finished:  true,
+					Error:     fmt.Errorf("%w: %v", ErrFailedToExecuteProcessors, err),
+			}
 		}
 	}
 }
