@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"path"
+	"time"
 )
 
 var ErrCouldNotDeepCopyFlowObject = fmt.Errorf("could not deep copy flow object")
@@ -56,7 +57,8 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 
 	newFlow, err := processor.Execute(copiedFlow, fileHandler, logger)
 	if err != nil {
-		if attempts < currentNode.MaxRetries {
+		if attempts < e.config.MaxRetries {
+			time.Sleep(time.Duration(e.config.Backoff) * time.Second)
 			logger.WithError(err).Warnf("retrying processor %s (%d/%d)", processor.Name(), attempts+1, currentNode.MaxRetries)
 			e.scheduleNextProcessor(sessionID, fileHandler, flow, currentNode, attempts+1)
 		} else {

@@ -5,4 +5,6 @@ type Config struct {
 	MaxWorkers        int    `json:"maxWorkers"`
 	FlowCheckInterval int    `json:"flowCheckInterval"`
 	FlowBatchSize     int    `json:"flowBatchSize"`
+	MaxRetries        int    `json:"maxRetries"`
+	Backoff           int    `json:"backoff"`
 }
