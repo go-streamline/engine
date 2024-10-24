@@ -35,10 +35,18 @@ type Engine struct {
 	activeFlows           map[uuid.UUID]*definitions.Flow
 	enabledProcessors     map[uuid.UUID]definitions.Processor
 	triggerProcessors     map[uuid.UUID]triggerProcessorInfo
+	coordinator           definitions.Coordinator
 	scheduler             scheduler
 }
 
-func New(config *configuration.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, processorFactory definitions.ProcessorFactory, flowManager definitions.FlowManager) (*Engine, error) {
+func New(
+	config *configuration.Config,
+	writeAheadLogger definitions.WriteAheadLogger,
+	log *logrus.Logger,
+	processorFactory definitions.ProcessorFactory,
+	flowManager definitions.FlowManager,
+	coordinator definitions.Coordinator,
+) (*Engine, error) {
 	err := utils.CreateDirsIfNotExist(config.Workdir)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCouldNotCreateDirs, err)
@@ -62,22 +70,36 @@ func New(config *configuration.Config, writeAheadLogger definitions.WriteAheadLo
 		enabledProcessors:     make(map[uuid.UUID]definitions.Processor),
 		triggerProcessors:     make(map[uuid.UUID]triggerProcessorInfo),
 		scheduler:             cron.New(cron.WithSeconds()),
+		coordinator:           coordinator,
 	}, nil
 }
 
-func NewWithDefaults(config *configuration.Config, writeAheadLogger definitions.WriteAheadLogger, log *logrus.Logger, db *gorm.DB, processorFactory definitions.ProcessorFactory) (*Engine, error) {
+func NewWithDefaults(
+	config *configuration.Config,
+	writeAheadLogger definitions.WriteAheadLogger,
+	log *logrus.Logger,
+	db *gorm.DB,
+	processorFactory definitions.ProcessorFactory,
+	coordinator definitions.Coordinator,
+) (*Engine, error) {
 	flowManager, err := persist.NewDBFlowManager(db)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCouldNotCreateFlowManager, err)
 	}
-	return New(config, writeAheadLogger, log, processorFactory, flowManager)
+	return New(config, writeAheadLogger, log, processorFactory, flowManager, coordinator)
 }
 
 func (e *Engine) Close() error {
 	e.cancelFunc()
 	e.scheduler.Stop()
-	e.workerPool.StopAndWait()
 	var errs []error
+	if e.coordinator != nil {
+		err := e.coordinator.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	e.workerPool.StopAndWait()
 	for _, triggerProcessor := range e.triggerProcessors {
 		err := triggerProcessor.Processor.Close()
 		if err != nil {

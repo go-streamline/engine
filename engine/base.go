@@ -7,7 +7,9 @@ import (
 	"github.com/go-streamline/interfaces/definitions"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
+	"github.com/sirupsen/logrus"
 	"path"
+	"time"
 )
 
 var ErrFailedToExecuteProcessors = fmt.Errorf("failed to execute processors")
@@ -53,20 +55,33 @@ func (e *Engine) processJob(job processingJob) {
 }
 
 func (e *Engine) runTriggerProcessor(tp definitions.TriggerProcessor, triggerProcessorDef *definitions.SimpleTriggerProcessor, flow *definitions.Flow) {
-	defer func() {
-		err := tp.Close()
-		if err != nil {
-			e.log.WithError(err).Errorf("failed to close trigger processor %s for flow %s", tp.Name(), flow.ID)
-		}
-	}()
-
 	if triggerProcessorDef.ScheduleType == definitions.EventDriven {
+		defer func() {
+			err := tp.Close()
+			if err != nil {
+				e.log.WithError(err).Errorf("failed to close trigger processor %s for flow %s", tp.Name(), flow.ID)
+			}
+		}()
 		// event-driven trigger processor uses the loop
 		for triggerProcessorDef.Enabled {
 			select {
 			case <-e.ctx.Done():
 				return
 			default:
+				if e.coordinator != nil && triggerProcessorDef.SingleNode {
+					isLeader, err := e.coordinator.IsLeader(triggerProcessorDef.ID)
+					if err != nil {
+						e.log.WithError(err).Errorf("failed to check if trigger processor %s is leader", triggerProcessorDef.Name)
+						continue
+					}
+
+					if !isLeader {
+						time.Sleep(100 * time.Millisecond)
+						continue
+					}
+
+					logrus.Debugf("trigger processor %s is leader", triggerProcessorDef.Name)
+				}
 				e.executeTriggerProcessor(tp, triggerProcessorDef, flow)
 			}
 		}
@@ -81,7 +96,7 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 	sessionID := uuid.New()
 
 	// create a new file handler for the trigger processor's output
-	outputFile := path.Join(e.config.Workdir, "contents", uuid.New().String())
+	outputFile := path.Join(e.config.Workdir, "contents", uuid.NewString())
 	fileHandler := filehandler.NewWriteOnlyEngineFileHandler(outputFile)
 
 	// create the flow object that the processor will use
@@ -90,7 +105,7 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 	}
 
 	// execute the trigger processor
-	_, err := tp.Execute(flowObject, fileHandler, e.log)
+	flowObject, err := tp.Execute(flowObject, fileHandler, e.log)
 	if err != nil {
 		e.log.WithError(err).Errorf("failed to execute trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
 		return
