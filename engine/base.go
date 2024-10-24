@@ -68,7 +68,7 @@ func (e *Engine) runTriggerProcessor(tp definitions.TriggerProcessor, triggerPro
 			case <-e.ctx.Done():
 				return
 			default:
-				if e.coordinator != nil {
+				if e.coordinator != nil && triggerProcessorDef.SingleNode {
 					isLeader, err := e.coordinator.IsLeader(triggerProcessorDef.ID)
 					if err != nil {
 						e.log.WithError(err).Errorf("failed to check if trigger processor %s is leader", triggerProcessorDef.Name)
