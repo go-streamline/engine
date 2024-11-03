@@ -59,8 +59,8 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	if err != nil {
 		if attempts < currentNode.MaxRetries {
 			go func() {
+				logger.WithError(err).Warnf("Processor %s failed, will attempt retry (%d/%d) in %d seconds", processor.Name(), attempts+1, currentNode.MaxRetries, currentNode.BackoffSeconds)
 				time.Sleep(time.Duration(currentNode.BackoffSeconds) * time.Second)
-				logger.WithError(err).Warnf("retrying processor %s (%d/%d)", processor.Name(), attempts+1, currentNode.MaxRetries)
 				e.scheduleNextProcessor(sessionID, fileHandler, flow, currentNode, attempts+1)
 			}()
 		} else {
