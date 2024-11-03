@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"time"
 )
 
 var ErrCouldNotDeepCopyFlowObject = fmt.Errorf("could not deep copy flow object")
@@ -72,8 +73,11 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	newFlow, err := processor.Execute(copiedFlow, fileHandler, logger)
 	if err != nil {
 		if attempts < currentNode.MaxRetries {
-			logger.WithError(err).Warnf("retrying processor %s (%d/%d)", processor.Name(), attempts+1, currentNode.MaxRetries)
-			e.scheduleNextProcessor(sessionID, fileHandler, flow, currentNode, attempts+1)
+			go func() {
+				logger.WithError(err).Warnf("Processor %s failed, will attempt retry (%d/%d) in %d seconds", processor.Name(), attempts+1, currentNode.MaxRetries, currentNode.BackoffSeconds)
+				time.Sleep(time.Duration(currentNode.BackoffSeconds) * time.Second)
+				e.scheduleNextProcessor(sessionID, fileHandler, flow, currentNode, attempts+1)
+			}()
 		} else {
 			logger.WithError(err).Errorf("failed to handle %s with processor %s after %d attempts", fileHandler.GetInputFile(), processor.Name(), currentNode.MaxRetries)
 			e.sessionUpdatesChannel <- definitions.SessionUpdate{
