@@ -24,12 +24,6 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 		return fmt.Errorf("processor %s not found in enabled processors cache", currentNode.ID)
 	}
 
-	err := processor.SetConfig(currentNode.Config)
-	if err != nil {
-		e.log.WithError(err).Error("failed to set processor configuration")
-		return fmt.Errorf("%w: %v", ErrFailedToSetProcessorConfig, err)
-	}
-
 	logEntry := definitions.LogEntry{
 		SessionID:             sessionID,
 		ProcessorName:         currentNode.Name,
