@@ -6,6 +6,8 @@ import (
 	"github.com/go-streamline/interfaces/utils"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"io"
+	"os"
 	"path"
 	"time"
 )
@@ -13,6 +15,25 @@ import (
 var ErrCouldNotDeepCopyFlowObject = fmt.Errorf("could not deep copy flow object")
 var ErrFailedToGetNextProcessor = fmt.Errorf("failed to get next processor")
 var ErrFailedToSetProcessorConfig = fmt.Errorf("failed to set processor configuration")
+
+type logrusProcessorHook struct {
+	FlowID        uuid.UUID
+	SessionID     uuid.UUID
+	ProcessorID   uuid.UUID
+	ProcessorName string
+}
+
+func (h *logrusProcessorHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+}
+
+func (h *logrusProcessorHook) Fire(entry *logrus.Entry) error {
+	entry.Data["flow_id"] = h.FlowID
+	entry.Data["session_id"] = h.SessionID
+	entry.Data["processor_id"] = h.ProcessorID
+	entry.Data["processor_name"] = h.ProcessorName
+	return nil
+}
 
 func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandler definitions.EngineFileHandler, sessionID uuid.UUID, attempts int, currentNode *definitions.SimpleProcessor) error {
 	if !currentNode.Enabled {
@@ -23,12 +44,6 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	processor, ok := e.enabledProcessors[currentNode.ID]
 	if !ok {
 		return fmt.Errorf("processor %s not found in enabled processors cache", currentNode.ID)
-	}
-
-	err := processor.SetConfig(currentNode.Config)
-	if err != nil {
-		e.log.WithError(err).Error("failed to set processor configuration")
-		return fmt.Errorf("%w: %v", ErrFailedToSetProcessorConfig, err)
 	}
 
 	logEntry := definitions.LogEntry{
@@ -201,7 +216,8 @@ func (e *Engine) createProcessorLogger(sessionID uuid.UUID, processor *definitio
 	if err != nil {
 		return nil, err
 	}
-	logger.SetOutput(file)
+	logger.SetOutput(io.MultiWriter(file, os.Stdout))
+	logger.AddHook(&logrusProcessorHook{FlowID: processor.FlowID, SessionID: sessionID, ProcessorID: processor.ID, ProcessorName: processor.Name})
 	logger.SetFormatter(&logrus.JSONFormatter{})
 	logger.SetLevel(processor.LogLevel)
 
