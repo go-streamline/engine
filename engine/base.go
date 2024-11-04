@@ -92,8 +92,6 @@ func (e *Engine) runTriggerProcessor(tp definitions.TriggerProcessor, triggerPro
 }
 
 func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, triggerProcessorDef *definitions.SimpleTriggerProcessor, flow *definitions.Flow) {
-	// generate a new session id for this execution of the flow
-	sessionID := uuid.New()
 
 	// create a new file handler for the trigger processor's output
 	outputFile := path.Join(e.config.Workdir, "contents", uuid.NewString())
@@ -105,7 +103,7 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 	}
 
 	// execute the trigger processor
-	flowObject, err := tp.Execute(flowObject, fileHandler, e.log)
+	flowObjects, err := tp.Execute(flowObject, fileHandler, e.log)
 	if err != nil {
 		e.log.WithError(err).Errorf("failed to execute trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
 		return
@@ -118,33 +116,35 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 		return
 	}
 
-	// add the initial processors to the branch tracker and schedule them
-	for _, processor := range initialProcessors {
-		if !processor.Enabled {
-			e.log.Infof("skipping disabled processor %s in flow %s", processor.Name, flow.ID)
-			continue
+	for _, flowObject = range flowObjects {
+		// generate a new session id for this execution of the flow
+		sessionID := uuid.New()
+		// add the initial processors to the branch tracker and schedule them
+		for _, processor := range initialProcessors {
+			if !processor.Enabled {
+				e.log.Infof("skipping disabled processor %s in flow %s", processor.Name, flow.ID)
+				continue
+			}
+
+			// add the processor to the branch tracker with its next processors
+			e.branchTracker.AddProcessor(sessionID, processor.ID, processor.NextProcessorIDs)
+			// generate a new file handler for each processor's output
+			newFileHandler, err := fileHandler.GenerateNewFileHandler()
+			if err != nil {
+				e.log.WithError(err).Errorf("failed to create file handler for processor %s", processor.Name)
+				continue
+			}
+			e.scheduleNextProcessor(sessionID, newFileHandler, flowObject, &processor, 0)
 		}
-
-		// add the processor to the branch tracker with its next processors
-		e.branchTracker.AddProcessor(sessionID, processor.ID, processor.NextProcessorIDs)
-
-		// generate a new file handler for each processor's output
-		newFileHandler, err := fileHandler.GenerateNewFileHandler()
-		if err != nil {
-			e.log.WithError(err).Errorf("failed to create file handler for processor %s", processor.Name)
-			continue
-		}
-
-		e.scheduleNextProcessor(sessionID, newFileHandler, flowObject, &processor, 0)
-	}
-
-	// for event-driven trigger processors, wait for all processors to complete
-	if triggerProcessorDef.ScheduleType == definitions.EventDriven {
-		for !e.branchTracker.IsComplete(sessionID) {
-			select {
-			case <-e.ctx.Done():
-				return
+		// for event-driven trigger processors, wait for all processors to complete
+		if triggerProcessorDef.ScheduleType == definitions.EventDriven {
+			for !e.branchTracker.IsComplete(sessionID) {
+				select {
+				case <-e.ctx.Done():
+					return
+				}
 			}
 		}
 	}
+
 }
