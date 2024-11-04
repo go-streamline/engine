@@ -86,8 +86,8 @@ github.com/go-logfmt/logfmt v0.4.0/go.mod h1:3RMwSq7FuexP4Kalkev3ejPJsZTpXXBr9+V
 github.com/go-logfmt/logfmt v0.5.0/go.mod h1:wCYkCAKZfumFQihp8CzCvQ3paCTfi41vtzG1KdI/P7A=
 github.com/go-logfmt/logfmt v0.5.1/go.mod h1:WYhtIu8zTZfxdn5+rREduYbwxfcBr/Vr6KEVveWlfTs=
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
-github.com/go-streamline/core v0.1.1 h1:7eRBUBBJNUzoQctbQ25zSfH5AF+A1h1tyl67tyIJ/y0=
-github.com/go-streamline/core v0.1.1/go.mod h1:JwupRUanLZuo/jIoaM5bEn23FJ+iYjb7wjmKZ9GpSPg=
+github.com/go-streamline/core v0.1.3 h1:H18oL6E2l2MhmPsYBAfG+eoNoFH/zTibOW6CoO7bFOo=
+github.com/go-streamline/core v0.1.3/go.mod h1:unAG4+ptNciv5PrHO2RbGct56JDOBvxkUh167cRKFYA=
 github.com/go-streamline/interfaces v0.1.4 h1:wcFdiNlZD69CXEmwtRwdtc5nDdY9pK9PRNIxLE8+kXM=
 github.com/go-streamline/interfaces v0.1.4/go.mod h1:fkb3uJI4B2+3dcWUoCww0fSaWjIMiYfFkmxBhsoSyZg=
 github.com/gogo/protobuf v1.1.1/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
