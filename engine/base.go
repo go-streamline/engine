@@ -49,6 +49,7 @@ func (e *Engine) processJob(job processingJob) {
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: job.sessionID,
 			Finished:  true,
+			TPMark:    job.flow.TPMark,
 			Error:     fmt.Errorf("%w: %v", ErrFailedToExecuteProcessors, err),
 		}
 	}
@@ -92,18 +93,16 @@ func (e *Engine) runTriggerProcessor(tp definitions.TriggerProcessor, triggerPro
 }
 
 func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, triggerProcessorDef *definitions.SimpleTriggerProcessor, flow *definitions.Flow) {
-
-	// create a new file handler for the trigger processor's output
-	outputFile := path.Join(e.config.Workdir, "contents", uuid.NewString())
-	fileHandler := filehandler.NewWriteOnlyEngineFileHandler(outputFile)
-
 	// create the flow object that the processor will use
 	flowObject := &definitions.EngineFlowObject{
 		Metadata: map[string]interface{}{},
 	}
 
 	// execute the trigger processor
-	flowObjects, err := tp.Execute(flowObject, fileHandler, e.log)
+	responses, err := tp.Execute(flowObject, func() definitions.ProcessorFileHandler {
+		outputFile := path.Join(e.config.Workdir, "contents", uuid.NewString())
+		return filehandler.NewWriteOnlyEngineFileHandler(outputFile)
+	}, e.log)
 	if err != nil {
 		e.log.WithError(err).Errorf("failed to execute trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
 		return
@@ -116,7 +115,7 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 		return
 	}
 
-	for _, flowObject = range flowObjects {
+	for _, response := range responses {
 		// generate a new session id for this execution of the flow
 		sessionID := uuid.New()
 		// add the initial processors to the branch tracker and schedule them
@@ -129,12 +128,13 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 			// add the processor to the branch tracker with its next processors
 			e.branchTracker.AddProcessor(sessionID, processor.ID, processor.NextProcessorIDs)
 			// generate a new file handler for each processor's output
-			newFileHandler, err := fileHandler.GenerateNewFileHandler()
+			newFileHandler, err := response.FileHandler.(definitions.EngineFileHandler).GenerateNewFileHandler()
 			if err != nil {
 				e.log.WithError(err).Errorf("failed to create file handler for processor %s", processor.Name)
 				continue
 			}
-			e.scheduleNextProcessor(sessionID, newFileHandler, flowObject, &processor, 0)
+
+			e.scheduleNextProcessor(sessionID, newFileHandler, response.EngineFlowObject, &processor, 0)
 		}
 		// for event-driven trigger processors, wait for all processors to complete
 		if triggerProcessorDef.ScheduleType == definitions.EventDriven {
