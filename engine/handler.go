@@ -83,6 +83,7 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 			e.sessionUpdatesChannel <- definitions.SessionUpdate{
 				SessionID: sessionID,
 				Finished:  true,
+				TPMark:    flow.TPMark,
 				Error:     newProcessorFailedError(currentNode.Name, err),
 			}
 		}
@@ -143,6 +144,7 @@ func (e *Engine) scheduleNextEnabledProcessor(
 			SessionID: sessionID,
 			Finished:  true,
 			Error:     nil,
+			TPMark:    flow.TPMark,
 		}
 	} else if allComplete {
 		// If all processors in this branch have completed, fetch the next processors from the flow manager and schedule them
@@ -183,6 +185,7 @@ func (e *Engine) scheduleNextProcessor(
 			SessionID: sessionID,
 			Finished:  true,
 			Error:     nil,
+			TPMark:    flow.TPMark,
 		}
 		return
 	}
