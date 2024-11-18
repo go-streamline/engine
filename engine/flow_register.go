@@ -79,7 +79,7 @@ func (e *Engine) activateFlow(flow *definitions.Flow) error {
 	// Initialize processors if enabled
 	for _, processor := range flow.Processors {
 		if processor.Enabled {
-			impl, err := e.processorFactory.GetProcessor(processor.Type)
+			impl, err := e.processorFactory.GetProcessor(processor.ID, processor.Type)
 			if err != nil {
 				e.log.WithError(err).Errorf("failed to get processor %s for flow %s", processor.Name, flow.ID)
 				continue
@@ -90,7 +90,7 @@ func (e *Engine) activateFlow(flow *definitions.Flow) error {
 
 	for _, triggerProcessorDef := range triggerProcessors {
 		if triggerProcessorDef.Enabled {
-			triggerProcessor, err := e.processorFactory.GetTriggerProcessor(triggerProcessorDef.Type)
+			triggerProcessor, err := e.processorFactory.GetTriggerProcessor(triggerProcessorDef.ID, triggerProcessorDef.Type)
 			if err != nil {
 				e.log.WithError(err).Errorf("failed to get trigger processor %s for flow %s", triggerProcessorDef.Name, flow.ID)
 				continue
