@@ -133,7 +133,7 @@ func (e *Engine) scheduleNextEnabledProcessor(
 		e.branchTracker.AddProcessor(sessionID, nextNode.ID, nextNode.NextProcessorIDs)
 
 		// Schedule the processor for execution
-		e.scheduleNextProcessor(sessionID, newFileHandler, flow, &nextNode, 0)
+		e.scheduleNextProcessor(sessionID, newFileHandler, flow, nextNode, 0)
 	}
 
 	// Mark the current processor as complete
@@ -166,7 +166,7 @@ func (e *Engine) scheduleNextEnabledProcessor(
 			}
 
 			// Schedule the next processor in the sequence
-			e.scheduleNextProcessor(sessionID, newFileHandler, flow, &nextProc, 0)
+			e.scheduleNextProcessor(sessionID, newFileHandler, flow, nextProc, 0)
 		}
 	}
 

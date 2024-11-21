@@ -134,7 +134,7 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 				continue
 			}
 
-			e.scheduleNextProcessor(sessionID, newFileHandler, response.EngineFlowObject, &processor, 0)
+			e.scheduleNextProcessor(sessionID, newFileHandler, response.EngineFlowObject, processor, 0)
 		}
 		// for event-driven trigger processors, wait for all processors to complete
 		if triggerProcessorDef.ScheduleType == definitions.EventDriven {
