@@ -106,7 +106,7 @@ func (e *Engine) activateFlow(flow *definitions.Flow) error {
 				e.log.WithError(err).Errorf("failed to set configuration for trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
 				continue
 			}
-			if triggerProcessorDef.ScheduleType == definitions.EventDriven {
+			if triggerProcessor.GetScheduleType() == definitions.EventDriven {
 				go e.runTriggerProcessor(triggerProcessor, triggerProcessorDef, flow)
 			} else {
 				scheduleID, err := e.scheduler.AddFunc(triggerProcessorDef.CronExpr, func() {

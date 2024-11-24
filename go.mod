@@ -4,8 +4,8 @@ go 1.22
 
 require (
 	github.com/alitto/pond v1.9.2
-	github.com/go-streamline/core v0.1.8
-	github.com/go-streamline/interfaces v0.1.8
+	github.com/go-streamline/core v0.1.10
+	github.com/go-streamline/interfaces v0.1.9
 	github.com/google/uuid v1.6.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sirupsen/logrus v1.9.3
@@ -14,6 +14,7 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -22,6 +23,7 @@ require (
 	github.com/eko/gocache/lib/v4 v4.1.6 // indirect
 	github.com/eko/gocache/store/ristretto/v4 v4.2.2 // indirect
 	github.com/expr-lang/expr v1.16.9 // indirect
+	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -45,4 +47,6 @@ require (
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gorm.io/datatypes v1.2.4 // indirect
+	gorm.io/driver/mysql v1.5.6 // indirect
 )

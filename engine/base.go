@@ -56,7 +56,7 @@ func (e *Engine) processJob(job processingJob) {
 }
 
 func (e *Engine) runTriggerProcessor(tp definitions.TriggerProcessor, triggerProcessorDef *definitions.SimpleTriggerProcessor, flow *definitions.Flow) {
-	if triggerProcessorDef.ScheduleType == definitions.EventDriven {
+	if tp.GetScheduleType() == definitions.EventDriven {
 		defer func() {
 			err := tp.Close()
 			if err != nil {
@@ -86,7 +86,7 @@ func (e *Engine) runTriggerProcessor(tp definitions.TriggerProcessor, triggerPro
 				e.executeTriggerProcessor(tp, triggerProcessorDef, flow)
 			}
 		}
-	} else if triggerProcessorDef.ScheduleType == definitions.CronDriven {
+	} else if tp.GetScheduleType() == definitions.CronDriven {
 		// cron-driven trigger processors are executed by the scheduler without loop
 		e.executeTriggerProcessor(tp, triggerProcessorDef, flow)
 	}
@@ -137,7 +137,7 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 			e.scheduleNextProcessor(sessionID, newFileHandler, response.EngineFlowObject, processor, 0)
 		}
 		// for event-driven trigger processors, wait for all processors to complete
-		if triggerProcessorDef.ScheduleType == definitions.EventDriven {
+		if tp.GetScheduleType() == definitions.EventDriven {
 			for !e.branchTracker.IsComplete(sessionID) {
 				select {
 				case <-e.ctx.Done():
