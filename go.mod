@@ -3,7 +3,7 @@ module github.com/go-streamline/engine
 go 1.22
 
 require (
-	github.com/alitto/pond v1.9.2
+	github.com/alitto/pond/v2 v2.1.5
 	github.com/go-streamline/core v0.1.10
 	github.com/go-streamline/interfaces v0.1.9
 	github.com/google/uuid v1.6.0

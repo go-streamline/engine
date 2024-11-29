@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"github.com/alitto/pond/v2"
 	"github.com/go-streamline/core/filehandler"
 	"github.com/go-streamline/interfaces/definitions"
 	"github.com/google/uuid"
@@ -38,8 +39,8 @@ type scheduler interface {
 
 type workerPool interface {
 	StopAndWait()
-	Submit(task func())
-	Stop() context.Context
+	Submit(task func()) pond.Task
+	Stop() pond.Task
 }
 
 func (e *Engine) processJob(job processingJob) {

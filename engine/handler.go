@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"github.com/go-streamline/core/filehandler"
 	"github.com/go-streamline/interfaces/definitions"
 	"github.com/go-streamline/interfaces/utils"
 	"github.com/google/uuid"
@@ -73,10 +74,11 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 	newFlow, err := processor.Execute(copiedFlow, fileHandler, logger)
 	if err != nil {
 		if attempts < currentNode.MaxRetries {
+			newHandler := filehandler.NewCopyOnWriteEngineFileHandler(fileHandler.GetInputFile())
 			go func() {
 				logger.WithError(err).Warnf("Processor %s failed, will attempt retry (%d/%d) in %d seconds", processor.Name(), attempts+1, currentNode.MaxRetries, currentNode.BackoffSeconds)
 				time.Sleep(time.Duration(currentNode.BackoffSeconds) * time.Second)
-				e.scheduleNextProcessor(sessionID, fileHandler, flow, currentNode, attempts+1)
+				e.scheduleNextProcessor(sessionID, newHandler, flow, currentNode, attempts+1)
 			}()
 		} else {
 			logger.WithError(err).Errorf("failed to handle %s with processor %s after %d attempts", fileHandler.GetInputFile(), processor.Name(), currentNode.MaxRetries)

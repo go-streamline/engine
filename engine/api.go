@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/alitto/pond"
+	"github.com/alitto/pond/v2"
 	"github.com/go-streamline/core/flow/persist"
 	"github.com/go-streamline/core/track"
 	"github.com/go-streamline/engine/configuration"
@@ -61,7 +61,7 @@ func New(
 		config:                config,
 		sessionUpdatesChannel: make(chan definitions.SessionUpdate),
 		writeAheadLogger:      writeAheadLogger,
-		workerPool:            pond.New(config.MaxWorkers, config.MaxWorkers),
+		workerPool:            pond.NewPool(config.MaxWorkers),
 		log:                   log,
 		processorFactory:      processorFactory,
 		flowManager:           flowManager,

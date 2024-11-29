@@ -10,7 +10,7 @@ func (e *Engine) monitorFlows() {
 	ticker := time.NewTicker(time.Duration(e.config.FlowCheckInterval) * time.Second)
 	defer ticker.Stop()
 
-	var lastQueryTime time.Time
+	lastQueryTime := e.monitorAndTrackFlows(time.Time{})
 
 	for {
 		select {
