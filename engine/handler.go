@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"github.com/go-streamline/core/filehandler"
 	"github.com/go-streamline/interfaces/definitions"
@@ -71,24 +72,9 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 		return newFailedToCreateLoggerError(currentNode.Name, err)
 	}
 
-	newFlow, err := processor.Execute(copiedFlow, fileHandler, logger)
-	if err != nil {
-		if attempts < currentNode.MaxRetries {
-			newHandler := filehandler.NewCopyOnWriteEngineFileHandler(fileHandler.GetInputFile())
-			go func() {
-				logger.WithError(err).Warnf("Processor %s failed, will attempt retry (%d/%d) in %d seconds", processor.Name(), attempts+1, currentNode.MaxRetries, currentNode.BackoffSeconds)
-				time.Sleep(time.Duration(currentNode.BackoffSeconds) * time.Second)
-				e.scheduleNextProcessor(sessionID, newHandler, flow, currentNode, attempts+1)
-			}()
-		} else {
-			logger.WithError(err).Errorf("failed to handle %s with processor %s after %d attempts", fileHandler.GetInputFile(), processor.Name(), currentNode.MaxRetries)
-			e.sessionUpdatesChannel <- definitions.SessionUpdate{
-				SessionID: sessionID,
-				Finished:  true,
-				TPMark:    flow.TPMark,
-				Error:     newProcessorFailedError(currentNode.Name, err),
-			}
-		}
+	newFlow, err := e.safelyExecuteProcessor(processor, copiedFlow, fileHandler, logger)
+	isError := e.handleProcessorFailure(flow, fileHandler, sessionID, attempts, currentNode, err, logger, processor)
+	if isError {
 		return nil
 	}
 
@@ -105,6 +91,58 @@ func (e *Engine) executeProcessor(flow *definitions.EngineFlowObject, fileHandle
 
 	// After processor execution, schedule the next step
 	return e.scheduleNextEnabledProcessor(sessionID, newFlow, fileHandler, currentNode)
+}
+
+func (e *Engine) safelyExecuteProcessor(
+	processor definitions.Processor,
+	flowObject *definitions.EngineFlowObject,
+	fileHandler definitions.EngineFileHandler,
+	logger *logrus.Logger,
+) (result *definitions.EngineFlowObject, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Errorf("panic occurred in processor %s, will yield for %d seconds before executing retry mechanism: %v", processor.Name(), e.config.ProcessorPanicYieldSeconds, r)
+			result = nil
+			err = fmt.Errorf("%w: %v", ErrProcessorPanicked, r)
+		}
+	}()
+
+	return processor.Execute(flowObject, fileHandler, logger)
+}
+
+func (e *Engine) handleProcessorFailure(
+	flow *definitions.EngineFlowObject,
+	fileHandler definitions.EngineFileHandler,
+	sessionID uuid.UUID,
+	attempts int,
+	currentNode *definitions.SimpleProcessor,
+	err error,
+	logger *logrus.Logger,
+	processor definitions.Processor,
+) bool {
+	if err != nil {
+		if attempts < currentNode.MaxRetries {
+			newHandler := filehandler.NewCopyOnWriteEngineFileHandler(fileHandler.GetInputFile())
+			go func() {
+				if errors.Is(err, ErrProcessorPanicked) {
+					time.Sleep(time.Duration(e.config.ProcessorPanicYieldSeconds) * time.Second)
+				}
+				logger.WithError(err).Warnf("Processor %s failed, will attempt retry (%d/%d) in %d seconds", processor.Name(), attempts+1, currentNode.MaxRetries, currentNode.BackoffSeconds)
+				time.Sleep(time.Duration(currentNode.BackoffSeconds) * time.Second)
+				e.scheduleNextProcessor(sessionID, newHandler, flow, currentNode, attempts+1)
+			}()
+		} else {
+			logger.WithError(err).Errorf("failed to handle %s with processor %s after %d attempts", fileHandler.GetInputFile(), processor.Name(), currentNode.MaxRetries)
+			e.sessionUpdatesChannel <- definitions.SessionUpdate{
+				SessionID: sessionID,
+				Finished:  true,
+				TPMark:    flow.TPMark,
+				Error:     newProcessorFailedError(currentNode.Name, err),
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func (e *Engine) scheduleNextEnabledProcessor(

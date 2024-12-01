@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/alitto/pond/v2"
 	"github.com/go-streamline/core/filehandler"
@@ -14,6 +15,7 @@ import (
 )
 
 var ErrFailedToExecuteProcessors = fmt.Errorf("failed to execute processors")
+var ErrProcessorPanicked = fmt.Errorf("processor panicked")
 
 type processingJob struct {
 	sessionID   uuid.UUID
@@ -100,13 +102,24 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 	}
 
 	// execute the trigger processor
-	responses, err := tp.Execute(flowObject, func() definitions.ProcessorFileHandler {
+	responses, err := e.safelyExecuteTriggerProcessor(tp, flowObject, func() definitions.ProcessorFileHandler {
 		outputFile := path.Join(e.config.Workdir, "contents", uuid.NewString())
 		return filehandler.NewWriteOnlyEngineFileHandler(outputFile)
 	}, e.log)
 	if err != nil {
-		e.log.WithError(err).Errorf("failed to execute trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
-		return
+		if errors.Is(err, ErrProcessorPanicked) && tp.GetScheduleType() == definitions.EventDriven {
+			e.log.WithError(err).Errorf(
+				"trigger processor %s panicked in flow %s, will yield for %d seconds",
+				triggerProcessorDef.Name,
+				flow.ID,
+				e.config.TriggerProcessorPanicYieldSeconds,
+			)
+			time.Sleep(time.Duration(e.config.TriggerProcessorPanicYieldSeconds) * time.Second)
+			return
+		} else {
+			e.log.WithError(err).Errorf("failed to execute trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
+			return
+		}
 	}
 
 	// get the first set of processors for the flow
@@ -148,4 +161,20 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 		}
 	}
 
+}
+
+func (e *Engine) safelyExecuteTriggerProcessor(
+	tp definitions.TriggerProcessor,
+	info *definitions.EngineFlowObject,
+	produceFileHandler func() definitions.ProcessorFileHandler,
+	log *logrus.Logger,
+) (resp []*definitions.TriggerProcessorResponse, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			resp = nil
+			err = fmt.Errorf("%w: %v", ErrProcessorPanicked, r)
+		}
+	}()
+
+	return tp.Execute(info, produceFileHandler, log)
 }
