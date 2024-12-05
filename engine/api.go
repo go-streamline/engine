@@ -100,14 +100,8 @@ func (e *Engine) Close() error {
 		}
 	}
 	e.workerPool.StopAndWait()
-	for _, triggerProcessor := range e.triggerProcessors {
-		err := triggerProcessor.Processor.Close()
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-	for _, processor := range e.enabledProcessors {
-		err := processor.Close()
+	for _, flow := range e.activeFlows {
+		err := e.deactivateFlow(flow.ID)
 		if err != nil {
 			errs = append(errs, err)
 		}

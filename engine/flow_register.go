@@ -1,10 +1,14 @@
 package engine
 
 import (
+	"errors"
+	"fmt"
 	"github.com/go-streamline/interfaces/definitions"
 	"github.com/google/uuid"
 	"time"
 )
+
+var ErrFuncPanicked = fmt.Errorf("function panicked")
 
 func (e *Engine) monitorFlows() {
 	ticker := time.NewTicker(time.Duration(e.config.FlowCheckInterval) * time.Second)
@@ -47,7 +51,10 @@ func (e *Engine) monitorAndTrackFlows(lastQueryTime time.Time) time.Time {
 					return lastQueryTime
 				}
 			} else {
-				e.deactivateFlow(flow.ID)
+				err = e.deactivateFlow(flow.ID)
+				if err != nil {
+					e.log.WithError(err).Errorf("failed to deactivate flow %s", flow.ID)
+				}
 			}
 		}
 
@@ -76,33 +83,29 @@ func (e *Engine) activateFlow(flow *definitions.Flow) error {
 		return err
 	}
 
-	// Initialize processors if enabled
-	for _, processor := range flow.Processors {
-		if processor.Enabled {
-			impl, err := e.processorFactory.GetProcessor(processor.ID, processor.Type)
-			if err != nil {
-				e.log.WithError(err).Errorf("failed to get processor %s for flow %s", processor.Name, flow.ID)
-				continue
-			}
-			e.enabledProcessors[processor.ID] = impl
-		}
-	}
+	activatedTriggerProcessors := 0
+	var allErrors error
 
 	for _, triggerProcessorDef := range triggerProcessors {
 		if triggerProcessorDef.Enabled {
 			triggerProcessor, err := e.processorFactory.GetTriggerProcessor(triggerProcessorDef.ID, triggerProcessorDef.Type)
 			if err != nil {
+				allErrors = errors.Join(allErrors, err)
 				e.log.WithError(err).Errorf("failed to get trigger processor %s for flow %s", triggerProcessorDef.Name, flow.ID)
 				continue
 			}
 			tpInfo := triggerProcessorInfo{
+				// Initialize processors if enabled
 				Processor:  triggerProcessor,
 				FlowID:     flow.ID,
 				Definition: triggerProcessorDef,
 			}
 			e.triggerProcessors[triggerProcessorDef.ID] = tpInfo
-			err = triggerProcessor.SetConfig(triggerProcessorDef.Config)
+			err = e.safelyRunErrorFunc(func() error {
+				return triggerProcessor.SetConfig(triggerProcessorDef.Config)
+			})
 			if err != nil {
+				allErrors = errors.Join(allErrors, err)
 				e.log.WithError(err).Errorf("failed to set configuration for trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
 				continue
 			}
@@ -113,18 +116,55 @@ func (e *Engine) activateFlow(flow *definitions.Flow) error {
 					e.runTriggerProcessor(triggerProcessor, triggerProcessorDef, flow)
 				})
 				if err != nil {
+					allErrors = errors.Join(allErrors, err)
 					e.log.WithError(err).Errorf("failed to schedule cron for trigger processor %s in flow %s", triggerProcessorDef.Name, flow.ID)
 					continue
 				}
 				tpInfo.CronEntryID = scheduleID
 			}
+			activatedTriggerProcessors++
+		}
+	}
+
+	if activatedTriggerProcessors == 0 {
+		e.log.Warnf("no trigger processors activated for flow %s", flow.ID)
+		defer e.deactivateFlow(flow.ID)
+		return allErrors
+	}
+	for _, processor := range flow.Processors {
+		if processor.Enabled {
+			impl, err := e.processorFactory.GetProcessor(processor.ID, processor.Type)
+			if err != nil {
+				e.log.WithError(err).Errorf("failed to get processor %s for flow %s", processor.Name, flow.ID)
+				continue
+			}
+			err = e.safelyRunErrorFunc(func() error {
+				return impl.SetConfig(processor.Config)
+			})
+			if err != nil {
+				e.log.WithError(err).Errorf("failed to set configuration for processor %s in flow %s", processor.Name, flow.ID)
+				defer e.deactivateFlow(flow.ID)
+				return err
+			}
+			e.enabledProcessors[processor.ID] = impl
 		}
 	}
 
 	return nil
 }
 
-func (e *Engine) deactivateFlow(flowID uuid.UUID) {
+func (e *Engine) safelyRunErrorFunc(f func() error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			e.log.Errorf("panic while running function: %v", r)
+			err = fmt.Errorf("%w: %v", ErrFuncPanicked, r)
+		}
+	}()
+	return f()
+}
+
+func (e *Engine) deactivateFlow(flowID uuid.UUID) error {
+	var allErrors error
 	if flow, ok := e.activeFlows[flowID]; ok {
 		// deactivate trigger processors
 		for _, triggerProcessorDef := range flow.TriggerProcessors {
@@ -133,10 +173,13 @@ func (e *Engine) deactivateFlow(flowID uuid.UUID) {
 					e.scheduler.Remove(tp.CronEntryID)
 				}
 
-				err := tp.Processor.Close()
+				err := e.safelyRunErrorFunc(func() error {
+					return tp.Processor.Close()
+				})
 				if err != nil {
 					e.log.WithError(err).Errorf("failed to close trigger processor %s[id=%s] in flow %s",
 						tp.Processor.Name(), triggerProcessorDef.ID, flowID)
+					allErrors = errors.Join(allErrors, err)
 				}
 				tp.Definition.Enabled = false
 				delete(e.triggerProcessors, triggerProcessorDef.ID)
@@ -146,10 +189,13 @@ func (e *Engine) deactivateFlow(flowID uuid.UUID) {
 		// deactivate regular processors
 		for _, processor := range flow.Processors {
 			if processor.Enabled {
-				err := e.enabledProcessors[processor.ID].Close()
+				err := e.safelyRunErrorFunc(func() error {
+					return e.enabledProcessors[processor.ID].Close()
+				})
 				if err != nil {
 					e.log.WithError(err).Errorf("failed to close processor %s[id=%s] in flow %s", processor.Name,
 						processor.ID, flowID)
+					allErrors = errors.Join(allErrors, err)
 				}
 				delete(e.enabledProcessors, processor.ID)
 			}
@@ -158,4 +204,6 @@ func (e *Engine) deactivateFlow(flowID uuid.UUID) {
 
 		delete(e.activeFlows, flowID)
 	}
+
+	return allErrors
 }

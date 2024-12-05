@@ -61,7 +61,9 @@ func (e *Engine) processJob(job processingJob) {
 func (e *Engine) runTriggerProcessor(tp definitions.TriggerProcessor, triggerProcessorDef *definitions.SimpleTriggerProcessor, flow *definitions.Flow) {
 	if tp.GetScheduleType() == definitions.EventDriven {
 		defer func() {
-			err := tp.Close()
+			err := e.safelyRunErrorFunc(func() error {
+				return tp.Close()
+			})
 			if err != nil {
 				e.log.WithError(err).Errorf("failed to close trigger processor %s for flow %s", tp.Name(), flow.ID)
 			}
