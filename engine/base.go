@@ -134,6 +134,7 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 	for _, response := range responses {
 		// generate a new session id for this execution of the flow
 		sessionID := uuid.New()
+		input := response.FileHandler.(definitions.EngineFileHandler).GetOutputFile()
 		// add the initial processors to the branch tracker and schedule them
 		for _, processor := range initialProcessors {
 			if !processor.Enabled {
@@ -144,11 +145,7 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 			// add the processor to the branch tracker with its next processors
 			e.branchTracker.AddProcessor(sessionID, processor.ID, processor.NextProcessorIDs)
 			// generate a new file handler for each processor's output
-			newFileHandler, err := response.FileHandler.(definitions.EngineFileHandler).GenerateNewFileHandler()
-			if err != nil {
-				e.log.WithError(err).Errorf("failed to create file handler for processor %s", processor.Name)
-				continue
-			}
+			newFileHandler := filehandler.NewCopyOnWriteEngineFileHandler(input)
 
 			e.scheduleNextProcessor(sessionID, newFileHandler, response.EngineFlowObject, processor, 0)
 		}
