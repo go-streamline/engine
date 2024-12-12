@@ -151,11 +151,7 @@ func (e *Engine) scheduleNextEnabledProcessor(
 	fileHandler definitions.EngineFileHandler,
 	currentNode *definitions.SimpleProcessor,
 ) error {
-	nextProcessorNodes, err := e.flowManager.GetProcessors(currentNode.NextProcessorIDs)
-	if err != nil {
-		e.log.WithError(err).Errorf("failed to find the next processor for %s", currentNode.ID)
-		return fmt.Errorf("%w: %v", ErrFailedToGetNextProcessor, err)
-	}
+	nextProcessorNodes := currentNode.NextProcessors
 
 	for _, nextNode := range nextProcessorNodes {
 		if !nextNode.Enabled {
@@ -170,7 +166,7 @@ func (e *Engine) scheduleNextEnabledProcessor(
 		}
 
 		// Add the processor to the branch tracker with its dependencies
-		e.branchTracker.AddProcessor(sessionID, nextNode.ID, nextNode.NextProcessorIDs)
+		e.branchTracker.AddProcessor(sessionID, nextNode.ID, e.getProcessorsIDs(nextNode.NextProcessors))
 
 		// Schedule the processor for execution
 		e.scheduleNextProcessor(sessionID, newFileHandler, flow, nextNode, 0)
@@ -178,7 +174,7 @@ func (e *Engine) scheduleNextEnabledProcessor(
 
 	// Mark the current processor as complete
 	allComplete := e.branchTracker.MarkComplete(sessionID, currentNode.ID)
-	if allComplete && len(currentNode.NextProcessorIDs) == 0 {
+	if allComplete && len(currentNode.NextProcessors) == 0 {
 		// If all processors in the current branch are done and there are no more processors, mark the flow as complete
 		e.sessionUpdatesChannel <- definitions.SessionUpdate{
 			SessionID: sessionID,
@@ -188,13 +184,7 @@ func (e *Engine) scheduleNextEnabledProcessor(
 		}
 	} else if allComplete {
 		// If all processors in this branch have completed, fetch the next processors from the flow manager and schedule them
-		nextProcessors, err := e.flowManager.GetProcessors(currentNode.NextProcessorIDs)
-		if err != nil {
-			e.log.WithError(err).Errorf("failed to get next processors for %s", currentNode.ID)
-			return fmt.Errorf("%w: %v", ErrFailedToGetNextProcessor, err)
-		}
-
-		for _, nextProc := range nextProcessors {
+		for _, nextProc := range currentNode.NextProcessors {
 			if !nextProc.Enabled {
 				continue
 			}

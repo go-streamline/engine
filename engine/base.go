@@ -143,7 +143,7 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 			}
 
 			// add the processor to the branch tracker with its next processors
-			e.branchTracker.AddProcessor(sessionID, processor.ID, processor.NextProcessorIDs)
+			e.branchTracker.AddProcessor(sessionID, processor.ID, e.getProcessorsIDs(processor.NextProcessors))
 			// generate a new file handler for each processor's output
 			newFileHandler := filehandler.NewCopyOnWriteEngineFileHandler(input)
 
@@ -160,6 +160,14 @@ func (e *Engine) executeTriggerProcessor(tp definitions.TriggerProcessor, trigge
 		}
 	}
 
+}
+
+func (e *Engine) getProcessorsIDs(processors []*definitions.SimpleProcessor) []uuid.UUID {
+	var ids []uuid.UUID
+	for _, p := range processors {
+		ids = append(ids, p.ID)
+	}
+	return ids
 }
 
 func (e *Engine) safelyExecuteTriggerProcessor(

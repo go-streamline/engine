@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"github.com/alitto/pond/v2"
 	coremocks "github.com/go-streamline/core/mocks"
 	"github.com/go-streamline/engine/configuration"
 	"github.com/go-streamline/interfaces/definitions"
@@ -15,17 +16,18 @@ type MockWorkerPool struct {
 	mock.Mock
 }
 
-func (m *MockWorkerPool) Submit(task func()) {
-	m.Called(task)
+func (m *MockWorkerPool) Submit(task func()) pond.Task {
+	args := m.Called(task)
+	return args.Get(0).(pond.Task)
 }
 
 func (m *MockWorkerPool) StopAndWait() {
 	m.Called()
 }
 
-func (m *MockWorkerPool) Stop() context.Context {
+func (m *MockWorkerPool) Stop() pond.Task {
 	args := m.Called()
-	return args.Get(0).(context.Context)
+	return args.Get(0).(pond.Task)
 }
 
 type MockScheduler struct {
