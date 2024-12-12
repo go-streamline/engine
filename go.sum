@@ -91,10 +91,10 @@ github.com/go-sql-driver/mysql v1.7.0/go.mod h1:OXbVy3sEdcQ2Doequ6Z5BW6fXNQTmx+9
 github.com/go-sql-driver/mysql v1.8.1 h1:LedoTUt/eveggdHS9qUFC1EFSa8bU2+1pZjSRpvNJ1Y=
 github.com/go-sql-driver/mysql v1.8.1/go.mod h1:wEBSXgmK//2ZFJyE+qWnIsVGmvmEKlqwuVSjsCm7DZg=
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
-github.com/go-streamline/core v0.1.16 h1:qnakEZ2erlzTXew196j3kLmQKo+y2lnZeK3PwNguVcA=
-github.com/go-streamline/core v0.1.16/go.mod h1:EpVsmiB6FiMehO6YNeNHm0WCZSMqbtID8cN66wa3dK0=
-github.com/go-streamline/interfaces v0.1.11 h1:cRV9bY8eb8wSnUgIsg+n6ygzqWqUceCshcbpC+n16sA=
-github.com/go-streamline/interfaces v0.1.11/go.mod h1:fkb3uJI4B2+3dcWUoCww0fSaWjIMiYfFkmxBhsoSyZg=
+github.com/go-streamline/core v0.1.17 h1:Iyw1/G6LQj14xPUcqKgW1u9oJ7rybTZ40rGtoW0H0Vc=
+github.com/go-streamline/core v0.1.17/go.mod h1:P6OEcLuCdDX7+mRYP48UNwCooGddrb4SUDpPlWbOj6A=
+github.com/go-streamline/interfaces v0.1.12 h1:5wfAajw6egZ3LrMa83NK9hg0+HTm2S8l3GVf+v3+Vjk=
+github.com/go-streamline/interfaces v0.1.12/go.mod h1:fkb3uJI4B2+3dcWUoCww0fSaWjIMiYfFkmxBhsoSyZg=
 github.com/gogo/protobuf v1.1.1/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
 github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 h1:au07oEsX2xN0ktxqI+Sida1w446QrXBRJ0nee3SNZlA=
 github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9/go.mod h1:8vg3r2VgvsThLBIFL93Qb5yWzgyZWhEmBwUJWevAkK0=

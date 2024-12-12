@@ -42,7 +42,7 @@ type Engine struct {
 func New(
 	config *configuration.Config,
 	writeAheadLogger definitions.WriteAheadLogger,
-	log *logrus.Logger,
+	logFactory definitions.LoggerFactory,
 	processorFactory definitions.ProcessorFactory,
 	flowManager definitions.FlowManager,
 	coordinator definitions.Coordinator,
@@ -62,10 +62,10 @@ func New(
 		sessionUpdatesChannel: make(chan definitions.SessionUpdate),
 		writeAheadLogger:      writeAheadLogger,
 		workerPool:            pond.NewPool(config.MaxWorkers),
-		log:                   log,
+		log:                   logFactory.GetLogger("engine"),
 		processorFactory:      processorFactory,
 		flowManager:           flowManager,
-		branchTracker:         track.NewBranchTracker(),
+		branchTracker:         track.NewBranchTracker(logFactory),
 		activeFlows:           make(map[uuid.UUID]*definitions.Flow),
 		enabledProcessors:     make(map[uuid.UUID]definitions.Processor),
 		triggerProcessors:     make(map[uuid.UUID]triggerProcessorInfo),
@@ -77,16 +77,16 @@ func New(
 func NewWithDefaults(
 	config *configuration.Config,
 	writeAheadLogger definitions.WriteAheadLogger,
-	log *logrus.Logger,
+	logFactory definitions.LoggerFactory,
 	db *gorm.DB,
 	processorFactory definitions.ProcessorFactory,
 	coordinator definitions.Coordinator,
 ) (*Engine, error) {
-	flowManager, err := persist.NewDBFlowManager(db)
+	flowManager, err := persist.NewDBFlowManager(db, logFactory)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCouldNotCreateFlowManager, err)
 	}
-	return New(config, writeAheadLogger, log, processorFactory, flowManager, coordinator)
+	return New(config, writeAheadLogger, logFactory, processorFactory, flowManager, coordinator)
 }
 
 func (e *Engine) Close() error {

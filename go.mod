@@ -4,8 +4,8 @@ go 1.22
 
 require (
 	github.com/alitto/pond/v2 v2.1.5
-	github.com/go-streamline/core v0.1.16
-	github.com/go-streamline/interfaces v0.1.11
+	github.com/go-streamline/core v0.1.17
+	github.com/go-streamline/interfaces v0.1.12
 	github.com/google/uuid v1.6.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sirupsen/logrus v1.9.3
