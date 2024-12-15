@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/alitto/pond/v2"
+	"github.com/cespare/xxhash/v2"
 	"github.com/go-streamline/core/flow/persist"
 	"github.com/go-streamline/core/track"
 	"github.com/go-streamline/engine/configuration"
@@ -14,6 +15,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
+	"strconv"
 )
 
 var ErrCouldNotCreateFlowManager = fmt.Errorf("could not create flow manager")
@@ -62,7 +64,7 @@ func New(
 		sessionUpdatesChannel: make(chan definitions.SessionUpdate),
 		writeAheadLogger:      writeAheadLogger,
 		workerPool:            pond.NewPool(config.MaxWorkers),
-		log:                   logFactory.GetLogger("engine"),
+		log:                   logFactory.GetLogger("engine", strconv.FormatUint(xxhash.Sum64String(config.Workdir), 10)),
 		processorFactory:      processorFactory,
 		flowManager:           flowManager,
 		branchTracker:         track.NewBranchTracker(logFactory),
